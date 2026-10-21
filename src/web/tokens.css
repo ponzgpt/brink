@@ -1,0 +1,105 @@
+/* Single source of colour and type for the game, the viewer and the page.
+   Two registers held in tension: DOCUMENT (paper, ink, rules) is the chrome;
+   SCREEN (board, phosphor) appears only inside the globe frame, as though a
+   console were photographed inside a printed report. Amber, not green: command
+   CRTs used amber phosphor as much as green, and green is burnt out by cinema. */
+:root {
+  --paper: #e3e1da;
+  --paper-2: #d8d5cc;
+  --ink: #1a1a17;
+  --ink-soft: #5a574e;
+  --rule: #b8b4a8;
+  --stamp: #a3261e;
+
+  --board: #0d1512;
+  --phosphor: #e8a33d;
+  --phosphor-2: #8c6a2b;
+  --alarm: #d9533b;
+
+  --defcon-5: #5a574e;
+  --defcon-4: #7d7a6c;
+  --defcon-3: #c9962e;
+  --defcon-2: #e8a33d;
+  --defcon-1: #a3261e;
+
+  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* `hidden` must beat the layout rules that set display on these sections. */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The paper register has no rounded corners and no diffuse shadows: a rule or a
+   change of background does the separating. */
+.rule {
+  border: 0;
+  border-top: 1px solid var(--rule);
+  margin: 0;
+}
+
+button,
+select {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 0;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--paper-2);
+}
+
+button:disabled {
+  color: var(--rule);
+  cursor: not-allowed;
+}
+
+button:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--stamp);
+  outline-offset: 1px;
+}
+
+.stamp {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--stamp);
+  border: 1px solid var(--stamp);
+  padding: 2px 6px;
+  display: inline-block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

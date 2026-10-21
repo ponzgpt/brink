@@ -1,0 +1,313 @@
+/* Page composition. Colour and type live in tokens.css. */
+
+.masthead {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 14px 24px 10px;
+  flex-wrap: wrap;
+}
+.masthead h1 {
+  font-family: var(--mono);
+  font-size: 30px;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+  margin: 0;
+}
+.masthead-meta {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+#app {
+  padding: 0 24px 40px;
+}
+
+/* --- setup --- */
+.setup-inner {
+  max-width: 68ch;
+  padding: 28px 0 8px;
+}
+.setup-lede {
+  font-size: 19px;
+  line-height: 1.5;
+  margin: 0 0 22px;
+}
+.setup-controls {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.setup-controls label {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.setup-note {
+  font-size: 15px;
+  color: var(--ink-soft);
+  margin: 18px 0 0;
+  min-height: 3em;
+}
+
+/* --- game --- */
+.game {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  grid-template-areas: 'board panels' 'log panels';
+  gap: 20px;
+  padding-top: 20px;
+  align-items: start;
+}
+.board {
+  grid-area: board;
+}
+.panels {
+  grid-area: panels;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.log-wrap {
+  grid-area: log;
+}
+
+/* The only place with a radius and an inner border: it is a screen, not paper. */
+.screen-frame {
+  position: relative;
+  background: var(--board);
+  border: 1px solid var(--ink);
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px var(--phosphor-2);
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+#globe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+.screen-overlay {
+  position: absolute;
+  inset: auto 10px 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  color: var(--phosphor);
+  pointer-events: none;
+}
+
+.defcon-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  margin-top: 10px;
+  border: 1px solid var(--rule);
+}
+.defcon-cell {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-align: center;
+  padding: 7px 2px;
+  color: var(--ink-soft);
+  border-right: 1px solid var(--rule);
+  background: var(--paper);
+}
+.defcon-cell:last-child {
+  border-right: 0;
+}
+.defcon-cell[data-on='1'] {
+  color: var(--paper);
+  font-weight: 600;
+}
+
+/* --- panels --- */
+.panel {
+  border: 1px solid var(--rule);
+  padding: 12px 14px 14px;
+  background: var(--paper);
+}
+.panel h2 {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: 0 0 10px;
+  display: flex;
+  justify-content: space-between;
+}
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 15px;
+  margin-bottom: 10px;
+}
+.counter {
+  color: var(--ink-soft);
+}
+table.kv,
+table.powers {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+table.kv th,
+table.powers th {
+  text-align: left;
+  font-weight: 400;
+  color: var(--ink-soft);
+  padding: 3px 0;
+}
+table.kv td,
+table.powers td {
+  text-align: right;
+  padding: 3px 0;
+}
+table.powers tr + tr th,
+table.powers tr + tr td {
+  border-top: 1px solid var(--rule);
+}
+
+.warning-list {
+  font-family: var(--mono);
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.warning {
+  border-left: 2px solid var(--defcon-3);
+  padding-left: 8px;
+}
+.warning b {
+  color: var(--stamp);
+}
+.quiet {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+.order-controls .row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.order-controls select {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.commit {
+  border-color: var(--ink);
+  font-weight: 600;
+}
+.order-queue {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.order-queue li {
+  border-top: 1px solid var(--rule);
+  padding: 4px 0;
+}
+.order-queue li.warn {
+  color: var(--stamp);
+}
+
+.log {
+  font-family: var(--mono);
+  font-size: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  border-top: 1px solid var(--rule);
+}
+.log li {
+  padding: 3px 0;
+  border-bottom: 1px solid var(--rule);
+  display: flex;
+  gap: 10px;
+}
+.log li .at {
+  color: var(--ink-soft);
+  flex: 0 0 56px;
+}
+.log li.alarm .what {
+  color: var(--stamp);
+}
+
+.result {
+  padding-top: 24px;
+  max-width: 80ch;
+}
+.result pre {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--paper-2);
+  border: 1px solid var(--rule);
+  padding: 14px;
+  overflow-x: auto;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.foot {
+  padding: 16px 24px 40px;
+  max-width: 78ch;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.foot p {
+  margin: 0 0 8px;
+}
+.foot code {
+  font-family: var(--mono);
+  background: var(--paper-2);
+  padding: 1px 4px;
+}
+.foot a {
+  color: var(--ink);
+}
+
+@media (max-width: 900px) {
+  .game {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'board' 'panels' 'log';
+  }
+  .panels {
+    grid-area: panels;
+  }
+  #app,
+  .masthead,
+  .foot {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+}

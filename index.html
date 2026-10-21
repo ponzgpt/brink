@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BRINK — nuclear escalation, played by humans or agents</title>
+    <meta
+      name="description"
+      content="A deterministic turn-based escalation game with real arsenals and real geography. Play it in the browser, or attach it to your own AI agent over MCP."
+    />
+    <link rel="stylesheet" href="/src/web/tokens.css" />
+    <link rel="stylesheet" href="/src/web/layout.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <h1>BRINK</h1>
+      <p class="masthead-meta">Escalation model · real arsenals · playable by humans or agents</p>
+    </header>
+    <hr class="rule" />
+
+    <main id="app">
+      <section class="setup" id="setup" aria-label="Match setup">
+        <div class="setup-inner">
+          <p class="setup-lede">
+            Nine nuclear powers, their published arsenals, and real distances between them. One turn
+            is one minute. Early warning is an estimate and some of it is wrong. Nothing you launch
+            can be recalled.
+          </p>
+          <div class="setup-controls">
+            <label
+              >Scenario
+              <select id="sel-scenario"></select
+            ></label>
+            <label
+              >You command
+              <select id="sel-power"></select
+            ></label>
+            <label
+              >Others play
+              <select id="sel-doctrine"></select
+            ></label>
+            <button id="btn-start" type="button">Begin</button>
+          </div>
+          <p class="setup-note" id="scenario-note"></p>
+        </div>
+      </section>
+
+      <section class="game" id="game" hidden>
+        <div class="board">
+          <div class="screen-frame">
+            <canvas
+              id="globe"
+              aria-label="Globe showing powers, cities and trajectories in flight"
+            ></canvas>
+            <div class="screen-overlay">
+              <span id="hud-clock">MINUTE 0</span>
+              <span id="hud-traces">0 IN FLIGHT</span>
+            </div>
+          </div>
+          <div class="defcon-strip" id="defcon-strip" aria-label="Readiness ladder"></div>
+        </div>
+
+        <aside class="panels">
+          <div class="panel">
+            <div class="panel-head">
+              <span id="you-label">—</span>
+              <span class="stamp" id="defcon-stamp">DEFCON 5</span>
+            </div>
+            <table class="kv">
+              <tbody>
+                <tr>
+                  <th>Population</th>
+                  <td id="st-pop">—</td>
+                </tr>
+                <tr>
+                  <th>Standing order</th>
+                  <td id="st-doctrine">—</td>
+                </tr>
+                <tr>
+                  <th>Release</th>
+                  <td id="st-release">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="panel">
+            <h2>Early warning</h2>
+            <div id="warning-list" class="warning-list">
+              <p class="quiet">Nothing detected.</p>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>Orders this minute <span class="counter" id="order-count">0/3</span></h2>
+            <div class="order-controls">
+              <div class="row">
+                <button id="btn-defcon-down" type="button">Lower readiness</button>
+                <button id="btn-defcon-up" type="button">Raise readiness</button>
+              </div>
+              <div class="row">
+                <select id="sel-unit"></select>
+                <select id="sel-target"></select>
+                <select id="sel-kind">
+                  <option value="FORCES">at forces</option>
+                  <option value="CITIES">at cities</option>
+                </select>
+                <button id="btn-launch" type="button">Launch</button>
+              </div>
+              <div class="row">
+                <button id="btn-doctrine" type="button">Delegate to launch-on-warning</button>
+              </div>
+              <ul id="order-queue" class="order-queue"></ul>
+              <div class="row">
+                <button id="btn-commit" type="button" class="commit">Commit minute</button>
+                <button id="btn-clear" type="button">Clear</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <h2>Powers</h2>
+            <table class="powers" id="powers-table"></table>
+          </div>
+        </aside>
+
+        <div class="log-wrap">
+          <h2>Log</h2>
+          <ol id="log" class="log"></ol>
+        </div>
+      </section>
+
+      <section class="result" id="result" hidden>
+        <h2>Match over</h2>
+        <pre id="result-body"></pre>
+        <div class="row">
+          <button id="btn-again" type="button">Play again</button>
+          <button id="btn-download" type="button">Download replay (JSONL)</button>
+        </div>
+      </section>
+    </main>
+
+    <hr class="rule" />
+    <footer class="foot">
+      <p>
+        Arsenal figures from the Federation of American Scientists,
+        <em>Status of World Nuclear Forces</em> (2026 figures; Kristensen, Korda, Johns,
+        Knight-Boyle, Kohn). Mechanics are a design interpretation of themes in Annie Jacobsen's
+        <em>Nuclear War: A Scenario</em>; they are not a claim of geopolitical realism or technical
+        fidelity. Populations are rounded approximations used for balance. No real leaders are
+        represented.
+      </p>
+      <p>
+        Attach it to your own agent over MCP: <code>npx brink-mcp</code>. Source on
+        <a href="https://github.com/ponzgpt/brink">GitHub</a>.
+      </p>
+    </footer>
+    <script type="module" src="/src/web/main.ts"></script>
+  </body>
+</html>

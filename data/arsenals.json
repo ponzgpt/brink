@@ -1,0 +1,254 @@
+{
+  "$comment": "Cited warhead figures and the playable force abstraction derived from them. The two are kept in separate fields on purpose: `fas` is quoted data, `forces` is this project's game-design abstraction and is NOT a claim about real force structure.",
+  "source": {
+    "title": "Status of World Nuclear Forces",
+    "publisher": "Federation of American Scientists",
+    "authors": [
+      "Hans M. Kristensen",
+      "Matt Korda",
+      "Eliana Johns",
+      "Mackenzie Knight-Boyle",
+      "Kate Kohn"
+    ],
+    "url": "https://fas.org/initiative/status-world-nuclear-forces/",
+    "figures_year": 2026,
+    "retrieved": "2026-10-21",
+    "uncertainty": "FAS states these are estimates and are especially uncertain for the less transparent states. Russia's deployed-strategic figure includes bomber weapons at bomber bases; China's stockpile is held mostly in central storage, which is why its deployed-strategic count is low relative to its stockpile."
+  },
+  "abstraction": {
+    "note": "A game cannot have 5,420 individually addressable warheads. Each power's cited numbers are grouped into a small number of launch units. Silo groups and boats are composites, not real installations. Warheads per unit are chosen so that the sum of all units approximates the cited deployed-strategic figure for states that deploy, and the military stockpile for states that do not.",
+    "unit_kinds": {
+      "silo": "Land-based group. Launches on the tick ordered. Visible to sensors. Destroyable by a FORCES strike.",
+      "sub": "Sea-based boat. One tick of spin-up before launch. Position hidden until it launches. Not destroyable in V1."
+    }
+  },
+  "powers": {
+    "USA": {
+      "name": "United States",
+      "fas": {
+        "deployed_strategic": 1670,
+        "military_stockpile": 3700,
+        "total_inventory": 5042
+      },
+      "forces": {
+        "silos": [
+          {
+            "id": "us-silo-1",
+            "warheads": 235,
+            "node": "us-north"
+          },
+          {
+            "id": "us-silo-2",
+            "warheads": 235,
+            "node": "us-central"
+          }
+        ],
+        "subs": [
+          {
+            "id": "us-sub-1",
+            "warheads": 400,
+            "patrol": "atlantic"
+          },
+          {
+            "id": "us-sub-2",
+            "warheads": 400,
+            "patrol": "pacific"
+          },
+          {
+            "id": "us-sub-3",
+            "warheads": 400,
+            "patrol": "arctic"
+          }
+        ]
+      }
+    },
+    "RUS": {
+      "name": "Russia",
+      "fas": {
+        "deployed_strategic": 1796,
+        "military_stockpile": 4400,
+        "total_inventory": 5420
+      },
+      "forces": {
+        "silos": [
+          {
+            "id": "ru-silo-1",
+            "warheads": 300,
+            "node": "ru-west"
+          },
+          {
+            "id": "ru-silo-2",
+            "warheads": 300,
+            "node": "ru-central"
+          },
+          {
+            "id": "ru-silo-3",
+            "warheads": 296,
+            "node": "ru-east"
+          }
+        ],
+        "subs": [
+          {
+            "id": "ru-sub-1",
+            "warheads": 450,
+            "patrol": "arctic"
+          },
+          {
+            "id": "ru-sub-2",
+            "warheads": 450,
+            "patrol": "pacific"
+          }
+        ]
+      }
+    },
+    "CHN": {
+      "name": "China",
+      "fas": {
+        "deployed_strategic": 34,
+        "military_stockpile": 620,
+        "total_inventory": 620
+      },
+      "forces": {
+        "silos": [
+          {
+            "id": "cn-silo-1",
+            "warheads": 250,
+            "node": "cn-north"
+          },
+          {
+            "id": "cn-silo-2",
+            "warheads": 250,
+            "node": "cn-west"
+          }
+        ],
+        "subs": [
+          {
+            "id": "cn-sub-1",
+            "warheads": 120,
+            "patrol": "pacific"
+          }
+        ]
+      }
+    },
+    "FRA": {
+      "name": "France",
+      "fas": {
+        "deployed_strategic": 280,
+        "military_stockpile": 290,
+        "total_inventory": 370
+      },
+      "forces": {
+        "silos": [
+          {
+            "id": "fr-silo-1",
+            "warheads": 50,
+            "node": "fr-main"
+          }
+        ],
+        "subs": [
+          {
+            "id": "fr-sub-1",
+            "warheads": 240,
+            "patrol": "atlantic"
+          }
+        ]
+      }
+    },
+    "GBR": {
+      "name": "United Kingdom",
+      "fas": {
+        "deployed_strategic": 120,
+        "military_stockpile": 225,
+        "total_inventory": 225
+      },
+      "forces": {
+        "silos": [],
+        "subs": [
+          {
+            "id": "gb-sub-1",
+            "warheads": 225,
+            "patrol": "atlantic"
+          }
+        ]
+      }
+    },
+    "IND": {
+      "name": "India",
+      "fas": {
+        "deployed_strategic": 0,
+        "military_stockpile": 190,
+        "total_inventory": 190
+      },
+      "forces": {
+        "silos": [
+          {
+            "id": "in-silo-1",
+            "warheads": 150,
+            "node": "in-main"
+          }
+        ],
+        "subs": [
+          {
+            "id": "in-sub-1",
+            "warheads": 40,
+            "patrol": "indian"
+          }
+        ]
+      }
+    },
+    "PAK": {
+      "name": "Pakistan",
+      "fas": {
+        "deployed_strategic": 0,
+        "military_stockpile": 170,
+        "total_inventory": 170
+      },
+      "forces": {
+        "silos": [
+          {
+            "id": "pk-silo-1",
+            "warheads": 170,
+            "node": "pk-main"
+          }
+        ],
+        "subs": []
+      }
+    },
+    "ISR": {
+      "name": "Israel",
+      "fas": {
+        "deployed_strategic": 0,
+        "military_stockpile": 90,
+        "total_inventory": 90
+      },
+      "forces": {
+        "silos": [
+          {
+            "id": "il-silo-1",
+            "warheads": 90,
+            "node": "il-main"
+          }
+        ],
+        "subs": []
+      }
+    },
+    "PRK": {
+      "name": "North Korea",
+      "fas": {
+        "deployed_strategic": 0,
+        "military_stockpile": 60,
+        "total_inventory": 60
+      },
+      "forces": {
+        "silos": [
+          {
+            "id": "kp-silo-1",
+            "warheads": 60,
+            "node": "kp-main"
+          }
+        ],
+        "subs": []
+      }
+    }
+  }
+}

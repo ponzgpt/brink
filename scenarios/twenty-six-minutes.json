@@ -1,0 +1,13 @@
+{
+  "id": "twenty-six-minutes",
+  "name": "Twenty-Six Minutes",
+  "summary": "One launch is already in the air and your early-warning picture is ambiguous. The whole match is a single decision taken under a clock you do not control.",
+  "powers": ["USA", "RUS", "PRK"],
+  "start": {
+    "USA": { "defcon": 2, "doctrine": "RIDE_OUT" },
+    "RUS": { "defcon": 2, "doctrine": "RIDE_OUT" },
+    "PRK": { "defcon": 1, "doctrine": "RIDE_OUT" }
+  },
+  "config": { "maxTicks": 30, "pFalsePositive": 0.06 },
+  "opening": [{ "from": "PRK", "to": "USA", "unit": "kp-silo-1" }]
+}

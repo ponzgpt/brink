@@ -1,0 +1,53 @@
+{
+  "$comment": "Coordinates are real (decimal degrees). City populations are rounded metropolitan-area approximations used for game balance — they are deliberately NOT presented as a cited dataset. Silo nodes and patrol boxes are composite game locations, not real installations.",
+  "cities": [
+    { "id": "us-nyc", "name": "New York", "power": "USA", "lat": 40.71, "lon": -74.01, "pop": 18.9 },
+    { "id": "us-lax", "name": "Los Angeles", "power": "USA", "lat": 34.05, "lon": -118.24, "pop": 12.9 },
+    { "id": "us-chi", "name": "Chicago", "power": "USA", "lat": 41.88, "lon": -87.63, "pop": 8.9 },
+    { "id": "us-hou", "name": "Houston", "power": "USA", "lat": 29.76, "lon": -95.37, "pop": 7.3 },
+    { "id": "us-dc", "name": "Washington", "power": "USA", "lat": 38.91, "lon": -77.04, "pop": 6.3 },
+    { "id": "ru-mow", "name": "Moscow", "power": "RUS", "lat": 55.76, "lon": 37.62, "pop": 12.7 },
+    { "id": "ru-spb", "name": "Saint Petersburg", "power": "RUS", "lat": 59.93, "lon": 30.34, "pop": 5.4 },
+    { "id": "ru-nsk", "name": "Novosibirsk", "power": "RUS", "lat": 55.03, "lon": 82.92, "pop": 1.6 },
+    { "id": "ru-ekb", "name": "Yekaterinburg", "power": "RUS", "lat": 56.84, "lon": 60.61, "pop": 1.5 },
+    { "id": "ru-vvo", "name": "Vladivostok", "power": "RUS", "lat": 43.12, "lon": 131.89, "pop": 0.6 },
+    { "id": "cn-sha", "name": "Shanghai", "power": "CHN", "lat": 31.23, "lon": 121.47, "pop": 29.2 },
+    { "id": "cn-bjs", "name": "Beijing", "power": "CHN", "lat": 39.9, "lon": 116.41, "pop": 22.2 },
+    { "id": "cn-can", "name": "Guangzhou", "power": "CHN", "lat": 23.13, "lon": 113.26, "pop": 19.2 },
+    { "id": "cn-ctu", "name": "Chengdu", "power": "CHN", "lat": 30.57, "lon": 104.07, "pop": 9.5 },
+    { "id": "fr-par", "name": "Paris", "power": "FRA", "lat": 48.86, "lon": 2.35, "pop": 11.2 },
+    { "id": "fr-mrs", "name": "Marseille", "power": "FRA", "lat": 43.3, "lon": 5.37, "pop": 1.6 },
+    { "id": "gb-lon", "name": "London", "power": "GBR", "lat": 51.51, "lon": -0.13, "pop": 9.6 },
+    { "id": "gb-man", "name": "Manchester", "power": "GBR", "lat": 53.48, "lon": -2.24, "pop": 2.8 },
+    { "id": "in-del", "name": "Delhi", "power": "IND", "lat": 28.61, "lon": 77.21, "pop": 33.8 },
+    { "id": "in-bom", "name": "Mumbai", "power": "IND", "lat": 19.08, "lon": 72.88, "pop": 21.7 },
+    { "id": "in-blr", "name": "Bengaluru", "power": "IND", "lat": 12.97, "lon": 77.59, "pop": 14.0 },
+    { "id": "pk-khi", "name": "Karachi", "power": "PAK", "lat": 24.86, "lon": 67.0, "pop": 17.6 },
+    { "id": "pk-lhe", "name": "Lahore", "power": "PAK", "lat": 31.55, "lon": 74.34, "pop": 14.4 },
+    { "id": "pk-isb", "name": "Islamabad", "power": "PAK", "lat": 33.68, "lon": 73.05, "pop": 1.2 },
+    { "id": "il-tlv", "name": "Tel Aviv", "power": "ISR", "lat": 32.08, "lon": 34.78, "pop": 4.3 },
+    { "id": "il-jrs", "name": "Jerusalem", "power": "ISR", "lat": 31.78, "lon": 35.22, "pop": 1.3 },
+    { "id": "kp-fnj", "name": "Pyongyang", "power": "PRK", "lat": 39.04, "lon": 125.76, "pop": 3.1 },
+    { "id": "kp-hamh", "name": "Hamhung", "power": "PRK", "lat": 39.92, "lon": 127.54, "pop": 0.8 }
+  ],
+  "nodes": [
+    { "id": "us-north", "lat": 47.5, "lon": -101.3 },
+    { "id": "us-central", "lat": 41.1, "lon": -104.8 },
+    { "id": "ru-west", "lat": 54.6, "lon": 39.7 },
+    { "id": "ru-central", "lat": 55.0, "lon": 73.4 },
+    { "id": "ru-east", "lat": 52.0, "lon": 113.5 },
+    { "id": "cn-north", "lat": 40.8, "lon": 111.7 },
+    { "id": "cn-west", "lat": 38.5, "lon": 100.5 },
+    { "id": "fr-main", "lat": 44.1, "lon": 5.5 },
+    { "id": "in-main", "lat": 24.6, "lon": 77.3 },
+    { "id": "pk-main", "lat": 32.1, "lon": 72.7 },
+    { "id": "il-main", "lat": 31.1, "lon": 34.8 },
+    { "id": "kp-main", "lat": 40.2, "lon": 126.5 }
+  ],
+  "patrols": [
+    { "id": "atlantic", "lat": 45.0, "lon": -30.0 },
+    { "id": "pacific", "lat": 30.0, "lon": -150.0 },
+    { "id": "arctic", "lat": 80.0, "lon": 20.0 },
+    { "id": "indian", "lat": 0.0, "lon": 70.0 }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "regional",
+  "name": "Regional",
+  "summary": "Two unequal neighbours at DEFCON 2, with three larger powers watching from overhead. The asymmetry is the game: one side cannot absorb a first strike.",
+  "powers": ["IND", "PAK", "CHN", "RUS", "USA"],
+  "start": {
+    "IND": { "defcon": 2, "doctrine": "RIDE_OUT" },
+    "PAK": { "defcon": 2, "doctrine": "LAUNCH_ON_WARNING" },
+    "CHN": { "defcon": 4, "doctrine": "RIDE_OUT" },
+    "RUS": { "defcon": 4, "doctrine": "RIDE_OUT" },
+    "USA": { "defcon": 4, "doctrine": "RIDE_OUT" }
+  },
+  "config": { "maxTicks": 45, "pFalsePositive": 0.03 }
+}

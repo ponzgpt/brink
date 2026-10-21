@@ -1,0 +1,18 @@
+{
+  "id": "standoff",
+  "name": "Standoff",
+  "summary": "All nine powers, full arsenals, cold start at DEFCON 4. Nobody is committed to anything yet. The long game.",
+  "powers": ["USA", "RUS", "CHN", "FRA", "GBR", "IND", "PAK", "ISR", "PRK"],
+  "start": {
+    "USA": { "defcon": 4, "doctrine": "RIDE_OUT" },
+    "RUS": { "defcon": 4, "doctrine": "RIDE_OUT" },
+    "CHN": { "defcon": 4, "doctrine": "RIDE_OUT" },
+    "FRA": { "defcon": 5, "doctrine": "RIDE_OUT" },
+    "GBR": { "defcon": 5, "doctrine": "RIDE_OUT" },
+    "IND": { "defcon": 4, "doctrine": "RIDE_OUT" },
+    "PAK": { "defcon": 4, "doctrine": "RIDE_OUT" },
+    "ISR": { "defcon": 4, "doctrine": "RIDE_OUT" },
+    "PRK": { "defcon": 3, "doctrine": "RIDE_OUT" }
+  },
+  "config": { "maxTicks": 60, "pFalsePositive": 0.015 }
+}
