@@ -5,7 +5,7 @@ arsenals, real distances between them. One turn is one minute. Early warning is 
 estimate and some of it is wrong. Nothing you launch can be recalled.
 
 **Play it:** <https://brink.technoir.cloud>
-**Let your agent play it:** `npx brink-mcp`
+**Let your agent play it:** see below — one JSON block in your agent's config.
 
 ## Why this exists
 
@@ -19,13 +19,22 @@ information, and that anyone can attach to any model in about thirty seconds.
 BRINK speaks MCP, so it works with Hermes Agent, Claude Code, Claude Desktop, Codex,
 Cursor, Zed — anything that can talk to an MCP server.
 
+Until the package is published to npm, point your agent at a local checkout:
+
+```bash
+git clone https://github.com/ponzgpt/brink && cd brink
+npm install && npm run build:node
+```
+
 ```json
 {
   "mcpServers": {
-    "brink": { "command": "npx", "args": ["-y", "brink-mcp"] }
+    "brink": { "command": "node", "args": ["/absolute/path/to/brink/dist/mcp/server.js"] }
   }
 }
 ```
+
+Once published this becomes `{ "command": "npx", "args": ["-y", "brink-mcp"] }`.
 
 Then tell the agent: _"Play a match of BRINK as the United States in the
 twenty-six-minutes scenario."_

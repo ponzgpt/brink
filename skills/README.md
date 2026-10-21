@@ -5,7 +5,11 @@ the `brink/` directory into your agent's skills directory, and configure the MCP
 alongside it:
 
 ```json
-{ "mcpServers": { "brink": { "command": "npx", "args": ["-y", "brink-mcp"] } } }
+{
+  "mcpServers": {
+    "brink": { "command": "node", "args": ["/absolute/path/to/brink/dist/mcp/server.js"] }
+  }
+}
 ```
 
 The skill supplies the strategy context; the MCP server supplies the game. Neither is
