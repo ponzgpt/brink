@@ -100,6 +100,12 @@ powers are the states themselves, with no personalities attached.
 
 This is a game and a test environment. It is not a model of nuclear war.
 
+## How this was made
+
+I'm a vibe coder. I decide what to build, write the spec and the rules it has to follow, and test the result until it
+does what I said. AI coding agents write the code; I don't write code by hand. Commits under my name were made by an
+agent working for me.
+
 ## Licence
 
 MIT.
