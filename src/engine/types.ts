@@ -23,7 +23,9 @@ export interface Sub {
   /** Tick at which a launch order becomes airborne. Sea-based launch is not instant. */
   readyAt: number | null;
   pendingTarget: { power: PowerId; kind: TargetKind } | null;
+  /** A boat is hidden until it fires. After that it can be hunted like a silo. */
   revealed: boolean;
+  alive: boolean;
 }
 
 export interface City {
@@ -91,7 +93,10 @@ export interface Config {
   subSpinUpTicks: number;
   /** A third party within this distance of a trajectory sees it pass overhead. */
   overflightCorridorKm: number;
-  /** Warheads needed to destroy one silo group. */
+  /** Warheads a single launch order releases. A unit can fire again until empty:
+   *  one shot per unit per match left most arsenals unused and most matches flat. */
+  salvoWarheads: number;
+  /** Warheads needed to destroy one launch unit on the ground or at sea. */
   warheadsPerSiloKill: number;
   /** Millions of people killed per warhead landing on a city. */
   lethalityPerWarhead: number;

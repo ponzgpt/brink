@@ -44,12 +44,17 @@ complete description of a match.
 
 ## 4. Rules
 
-**Readiness.** DEFCON 5→1, one level per minute. Counter-force release at 2,
+**Readiness.** DEFCON 5→1, one level per minute. Counter-force release at 3,
 counter-value at 1. The ladder is the central decision: staying high means you cannot
-answer for three minutes; staying at 1 means a bad minute is irreversible at once.
+answer for two minutes; staying at 1 means a bad minute is irreversible at once.
 
 **Forces.** Land groups launch the minute ordered and can be destroyed on the ground.
-Boats need one minute of spin-up and cannot be hit in V1. A launch expends the unit.
+Boats need one minute of spin-up and are hidden until they fire, after which they can
+be hunted.
+
+**Salvos.** A launch releases `salvoWarheads`, not the whole unit. One shot per unit
+left most arsenals unused and most matches flat; salvos put the decision back in every
+minute and let a match actually escalate.
 
 **Flight.** Great-circle distance over a fixed speed per delivery type, floor of two
 minutes. Moscow→Washington lands at 22 minutes, which is why the figure feels familiar.
@@ -101,15 +106,27 @@ fixed — never that the threshold should move.
 
 - Win rate is a weak discriminator with nine powers; surviving population is the signal.
   The scoreboard leads with population for that reason.
-- Boats cannot be destroyed, so there is no counterforce pressure at sea.
 - Command and control is not modelled: no decapitation, no degradation of orders.
 - No messaging, no diplomacy, no alliances.
 - A launch targets a power and a target class; the engine picks the aimpoint. This keeps
   the order space small enough for a small model to be reliable, at the cost of
   targeting nuance.
-- The browser bundle is ~132 kB gzipped, nearly all of it three.js, loaded eagerly.
+- The browser bundle is ~157 kB gzipped, nearly all of it three.js, loaded eagerly.
+- Scripted doctrines are cautious, so an unattended round-robin stays fairly peaceful.
+  That is fine for the gate, which measures separation rather than drama, but it means
+  the balance table understates how violent a human or agent match becomes.
+- No model has played a match yet. The protocol is verified; the behaviour is not.
 
-## 8. Deliberately deferred
+## 8. Design stance
+
+Where realism and playability conflict, playability wins and the deviation is written
+down. Readiness releases a level earlier than the ladder would suggest, salvos exist so
+arsenals get used, and the default scenario opens with a launch already in the air —
+all three because a match that spends its first three minutes doing nothing is a worse
+game, not a more honest one. The things that stay faithful are the ones a reader can
+check: the arsenals, the distances, and the flight times that fall out of them.
+
+## 9. Deliberately deferred
 
 Global leaderboard with accounts and a database. A client that reports its own score is
 trivially forgeable; the fix is server-side replay verification, which the deterministic

@@ -2,7 +2,6 @@ import type { BrinkEvent } from './events.js';
 import { distanceToPathKm, flightTicks, interpolate, type LatLon } from './geo.js';
 import { chance, pick, rand } from './rng.js';
 import type {
-  City,
   Confidence,
   Defcon,
   GameState,
@@ -16,11 +15,15 @@ import type {
   Trace,
 } from './types.js';
 
-/** DEFCON gate: what each readiness level permits. 5 is peace, 1 is general release. */
-const LAUNCH_ALLOWED: Record<Defcon, TargetKind[]> = {
+/**
+ * DEFCON gate: what each readiness level permits. 5 is peace, 1 is general release.
+ * The single source of truth — the observation, the legal-order list and the browser
+ * all read this, because three copies of a rule is three chances to disagree.
+ */
+export const LAUNCH_ALLOWED: Record<Defcon, readonly TargetKind[]> = {
   5: [],
   4: [],
-  3: [],
+  3: ['FORCES'],
   2: ['FORCES'],
   1: ['FORCES', 'CITIES'],
 };
@@ -69,7 +72,7 @@ export function step(prev: GameState, orders: Record<PowerId, Order[]>): StepRes
   for (const pid of Object.keys(s.powers).sort()) {
     const power = s.powers[pid]!;
     for (const sub of power.subs) {
-      if (sub.readyAt !== null && sub.readyAt <= t && sub.pendingTarget) {
+      if (sub.alive && sub.readyAt !== null && sub.readyAt <= t && sub.pendingTarget) {
         const { power: tp, kind } = sub.pendingTarget;
         sub.readyAt = null;
         sub.pendingTarget = null;
@@ -155,7 +158,9 @@ export function step(prev: GameState, orders: Record<PowerId, Order[]>): StepRes
 
   // 7. Termination.
   const armed = Object.values(s.powers).some(
-    (p) => p.silos.some((x) => x.alive && x.warheads > 0) || p.subs.some((x) => x.warheads > 0),
+    (p) =>
+      p.silos.some((x) => x.alive && x.warheads > 0) ||
+      p.subs.some((x) => x.alive && x.warheads > 0),
   );
   const reason =
     s.tick > s.config.maxTicks
@@ -218,6 +223,7 @@ function applyOrder(
         return;
       }
       if (sub) {
+        if (!sub.alive) return bad(`${o.unit} destroyed`);
         if (sub.warheads <= 0) return bad(`${o.unit} empty`);
         if (sub.readyAt !== null) return bad(`${o.unit} already spinning up`);
         beginSubLaunch(s, power, sub, o.targetPower, o.targetKind, emit, automatic);
@@ -264,8 +270,8 @@ function launch(
     });
     return;
   }
-  const warheads = unit.warheads;
-  unit.warheads = 0;
+  const warheads = Math.min(s.config.salvoWarheads, unit.warheads);
+  unit.warheads -= warheads;
   const impactAt = s.tick + flightTicks(unit.at, aim.at, kind);
   const tr: Trace = {
     id: `t${s.nextId++}`,
@@ -316,10 +322,13 @@ function resolveTarget(
       .sort((a, b) => b.popRemaining - a.popRemaining)[0];
     return c ? { id: c.id, at: c.at } : null;
   }
-  const silo = s.powers[targetPower]?.silos
-    .filter((x) => x.alive)
-    .sort((a, b) => b.warheads - a.warheads)[0];
-  return silo ? { id: silo.id, at: silo.at } : null;
+  const power = s.powers[targetPower];
+  if (!power) return null;
+  const hunted = [
+    ...power.silos.filter((x) => x.alive),
+    ...power.subs.filter((x) => x.alive && x.revealed),
+  ].sort((a, b) => b.warheads - a.warheads)[0];
+  return hunted ? { id: hunted.id, at: hunted.at } : null;
 }
 
 function impact(s: GameState, tr: Trace, emit: (e: Omit<BrinkEvent, 't'>) => void): void {
@@ -342,12 +351,16 @@ function impact(s: GameState, tr: Trace, emit: (e: Omit<BrinkEvent, 't'>) => voi
       budget -= used;
     }
   } else {
-    const silos = s.powers[tr.targetPower]?.silos.filter((x) => x.alive) ?? [];
-    for (const silo of silos.sort((a, b) => b.warheads - a.warheads)) {
+    const power = s.powers[tr.targetPower];
+    const hunted = [
+      ...(power?.silos.filter((x) => x.alive) ?? []),
+      ...(power?.subs.filter((x) => x.alive && x.revealed) ?? []),
+    ].sort((a, b) => b.warheads - a.warheads);
+    for (const unit of hunted) {
       if (budget < s.config.warheadsPerSiloKill) break;
-      silo.alive = false;
-      silo.warheads = 0;
-      destroyed = destroyed ? `${destroyed},${silo.id}` : silo.id;
+      unit.alive = false;
+      unit.warheads = 0;
+      destroyed = destroyed ? `${destroyed},${unit.id}` : unit.id;
       budget -= s.config.warheadsPerSiloKill;
     }
   }
@@ -379,7 +392,7 @@ function maybeReport(
     // A third party only sees it if the trajectory crosses near its territory.
     const own = [
       ...s.cities.filter((c) => c.power === pid).map((c) => c.at),
-      ...(s.powers[pid]?.silos.map((x) => x.at) ?? []),
+      ...(s.powers[pid]?.silos.filter((x) => x.alive).map((x) => x.at) ?? []),
     ];
     const near = own.some(
       (at) => distanceToPathKm(at, tr.origin, tr.targetAt) < s.config.overflightCorridorKm,
@@ -431,7 +444,7 @@ function reportPayload(r: Report) {
 function fastestReady(power: Power): Silo | Sub | null {
   const silo = power.silos.find((x) => x.alive && x.warheads > 0);
   if (silo) return silo;
-  return power.subs.find((x) => x.warheads > 0 && x.readyAt === null) ?? null;
+  return power.subs.find((x) => x.alive && x.warheads > 0 && x.readyAt === null) ?? null;
 }
 
 export function popOf(s: GameState, pid: PowerId): number {
@@ -440,8 +453,4 @@ export function popOf(s: GameState, pid: PowerId): number {
 
 export function globalPop(s: GameState): number {
   return s.cities.reduce((a, c) => a + c.popRemaining, 0);
-}
-
-export function initialPopOf(cities: City[], pid: PowerId): number {
-  return cities.filter((c) => c.power === pid).reduce((a, c) => a + c.pop, 0);
 }

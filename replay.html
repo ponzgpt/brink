@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BRINK — replay</title>
+    <meta name="description" content="Watch back any BRINK match from its event log." />
+    <link rel="stylesheet" href="/src/web/tokens.css" />
+    <link rel="stylesheet" href="/src/web/layout.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <h1><a href="/">BRINK</a></h1>
+      <p class="masthead-meta">Replay</p>
+    </header>
+    <hr class="rule" />
+
+    <main id="app">
+      <section class="setup" id="picker">
+        <div class="setup-inner">
+          <p class="setup-lede">
+            Every match writes an event log, and the log is all the viewer needs: a seed and a list
+            of orders reproduce a match exactly. Drop one in to watch it back.
+          </p>
+          <div class="setup-controls">
+            <label
+              >Match log <input type="file" id="file" accept=".jsonl,.ndjson,.json,.txt"
+            /></label>
+            <button id="btn-sample" type="button">Load a sample match</button>
+          </div>
+          <p class="setup-note" id="picker-note">
+            Logs come from the Download replay button at the end of a match.
+          </p>
+        </div>
+      </section>
+
+      <section class="game" id="player" hidden>
+        <div class="board">
+          <div class="screen-frame">
+            <canvas id="globe" aria-label="Globe replaying a recorded match"></canvas>
+            <div class="screen-overlay">
+              <span id="hud-clock">MINUTE 0</span>
+              <span id="hud-traces">0 IN FLIGHT</span>
+            </div>
+          </div>
+          <div class="defcon-strip" id="defcon-strip" aria-label="Readiness of each power"></div>
+          <div class="transport">
+            <button id="btn-play" type="button">Play</button>
+            <button id="btn-step-back" type="button">◀ minute</button>
+            <button id="btn-step" type="button">minute ▶</button>
+            <input type="range" id="scrub" min="0" max="1" value="0" aria-label="Timeline" />
+            <select id="speed">
+              <option value="2000">0.5×</option>
+              <option value="1000" selected>1×</option>
+              <option value="500">2×</option>
+              <option value="250">4×</option>
+            </select>
+          </div>
+        </div>
+
+        <aside class="panels">
+          <div class="panel">
+            <h2>Match</h2>
+            <table class="kv">
+              <tbody>
+                <tr>
+                  <th>Scenario</th>
+                  <td id="m-scenario">—</td>
+                </tr>
+                <tr>
+                  <th>Seed</th>
+                  <td id="m-seed">—</td>
+                </tr>
+                <tr>
+                  <th>Minute</th>
+                  <td id="m-tick">—</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="panel">
+            <h2>Population</h2>
+            <table class="powers" id="m-powers"></table>
+          </div>
+        </aside>
+
+        <div class="log-wrap">
+          <h2>Log</h2>
+          <ol id="log" class="log"></ol>
+        </div>
+      </section>
+    </main>
+
+    <hr class="rule" />
+    <footer class="foot">
+      <p>The same renderer draws the live match and this replay, from the same event log.</p>
+    </footer>
+    <script type="module" src="/src/web/replay.ts"></script>
+  </body>
+</html>

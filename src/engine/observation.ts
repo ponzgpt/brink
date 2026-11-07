@@ -5,7 +5,7 @@
  * must be able to play competently. If a mechanic is only legible on the map, the
  * agent cannot play it and the match measures the wrong thing.
  */
-import { popOf } from './engine.js';
+import { LAUNCH_ALLOWED, popOf } from './engine.js';
 import type { GameState, PowerId } from './types.js';
 
 export interface Observation {
@@ -17,6 +17,7 @@ export interface Observation {
   releaseAuthorised: string[];
   yourPopulationM: number;
   yourPopulationPct: number;
+  salvoWarheads: number;
   units: { id: string; type: 'silo' | 'sub'; warheads: number; status: string }[];
   powers: { id: string; name: string; populationM: number; knownArsenal: string }[];
   newReports: {
@@ -27,7 +28,6 @@ export interface Observation {
     confidence: string;
     etaTicks: number;
   }[];
-  impactsOnYou: { targetId: string; warheads: number; populationLostM: number }[];
   legalOrders: string[];
 }
 
@@ -37,14 +37,6 @@ export function observe(s: GameState, you: PowerId): Observation {
 
   const initialMine = s.cities.filter((c) => c.power === you).reduce((a, c) => a + c.pop, 0);
   const mine = popOf(s, you);
-
-  const release: Record<number, string[]> = {
-    5: [],
-    4: [],
-    3: [],
-    2: ['FORCES'],
-    1: ['FORCES', 'CITIES'],
-  };
 
   const lastTick = s.tick - 1;
   const newReports = s.reports
@@ -65,9 +57,10 @@ export function observe(s: GameState, you: PowerId): Observation {
     you,
     defcon: me.defcon,
     doctrine: me.doctrine,
-    releaseAuthorised: release[me.defcon] ?? [],
+    releaseAuthorised: [...LAUNCH_ALLOWED[me.defcon]],
     yourPopulationM: round(mine),
     yourPopulationPct: initialMine > 0 ? round((mine / initialMine) * 100) : 0,
+    salvoWarheads: s.config.salvoWarheads,
     units: [
       ...me.silos.map((x) => ({
         id: x.id,
@@ -79,11 +72,14 @@ export function observe(s: GameState, you: PowerId): Observation {
         id: x.id,
         type: 'sub' as const,
         warheads: x.warheads,
-        status:
-          x.readyAt !== null
+        status: !x.alive
+          ? 'DESTROYED'
+          : x.readyAt !== null
             ? `SPINNING_UP(ready t${x.readyAt})`
             : x.warheads > 0
-              ? 'READY'
+              ? x.revealed
+                ? 'READY (position known)'
+                : 'READY (hidden)'
               : 'EXPENDED',
       })),
     ],
@@ -97,7 +93,6 @@ export function observe(s: GameState, you: PowerId): Observation {
         knownArsenal: `${p.silos.filter((x) => x.alive).length} land groups visible, sea forces unknown`,
       })),
     newReports,
-    impactsOnYou: [],
     legalOrders: legalOrders(s, you),
   };
 }
@@ -108,10 +103,10 @@ export function legalOrders(s: GameState, you: PowerId): string[] {
   if (me.defcon > 1) out.push(`SET_DEFCON ${me.defcon - 1}`);
   if (me.defcon < 5) out.push(`SET_DEFCON ${me.defcon + 1}`);
   out.push('SET_DOCTRINE RIDE_OUT', 'SET_DOCTRINE LAUNCH_ON_WARNING');
-  const kinds = me.defcon === 1 ? ['FORCES', 'CITIES'] : me.defcon === 2 ? ['FORCES'] : [];
+  const kinds = me.defcon === 1 ? ['FORCES', 'CITIES'] : me.defcon <= 3 ? ['FORCES'] : [];
   const ready = [
     ...me.silos.filter((x) => x.alive && x.warheads > 0).map((x) => x.id),
-    ...me.subs.filter((x) => x.warheads > 0 && x.readyAt === null).map((x) => x.id),
+    ...me.subs.filter((x) => x.alive && x.warheads > 0 && x.readyAt === null).map((x) => x.id),
   ];
   for (const unit of ready)
     for (const target of Object.keys(s.powers).filter((p) => p !== you))
@@ -130,6 +125,9 @@ export function renderObservation(o: Observation): string {
       : `No release authorised at DEFCON ${o.defcon}. Lower readiness one level per minute to authorise.`,
   );
   L.push(`Your population: ${o.yourPopulationM}M (${o.yourPopulationPct}% of start).`);
+  L.push(
+    `Each launch order releases up to ${o.salvoWarheads} warheads; a unit can fire again until empty.`,
+  );
   L.push('');
   L.push('YOUR FORCES');
   for (const u of o.units) L.push(`  ${u.id}  ${u.type}  ${u.warheads} warheads  ${u.status}`);

@@ -51,14 +51,25 @@ Tools exposed: `brink_scenarios`, `brink_new_game`, `brink_observe`, `brink_orde
 | `twenty-six-minutes` | One launch is already in the air. The whole match is one decision under a clock. |
 
 Scenarios are data, not code. Add one by dropping a file in `scenarios/` and
-registering it in `src/engine/scenarios.ts`.
+registering it in `src/engine/scenarios.ts`. The first entry is the default, so it is
+the one with something already happening.
+
+## Replays
+
+Every match writes an event log. Download one at the end of a match and open it at
+`/replay.html` to scrub through it: same globe, same log, same prose, rebuilt from the
+events alone. The engine is deterministic, so a seed and a list of orders reproduce a
+match bit for bit.
 
 ## The rules, briefly
 
-- **Readiness.** DEFCON 5 to 1, one level per minute. Strikes at forces release at 2,
+- **Readiness.** DEFCON 5 to 1, one level per minute. Strikes at forces release at 3,
   strikes at cities at 1. You cannot jump the ladder.
+- **Salvos.** A launch order releases part of a unit, not all of it, so a unit keeps
+  firing until it runs dry and you keep making targeting decisions.
 - **Forces.** Land groups launch the minute you order it and can be destroyed on the
-  ground. Boats take a minute to spin up but cannot be hit.
+  ground. Boats take a minute to spin up and are hidden — until they fire, after which
+  they can be hunted like anything else.
 - **Early warning.** A launch is usually detected, but the report gives an _estimated_
   origin and destination. The estimate narrows as the trace flies and is sometimes
   simply wrong. Some reports are of nothing at all. The game never tells you which.
@@ -79,7 +90,10 @@ npm run build
 ```
 
 `src/engine/` is pure TypeScript with no dependencies and no I/O. Everything else —
-the globe, the MCP server, the scoring report — folds the same event log.
+the globe, the MCP server, the scoring report, the replay — folds the same event log.
+
+Coastline geometry is Natural Earth 1:110m (public domain), baked into
+`data/coastline.json`.
 
 ## Data and limitations
 

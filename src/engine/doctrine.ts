@@ -24,7 +24,7 @@ const readyUnit = (s: GameState, you: PowerId): string | null => {
   const p = s.powers[you]!;
   return (
     p.silos.find((x) => x.alive && x.warheads > 0)?.id ??
-    p.subs.find((x) => x.warheads > 0 && x.readyAt === null)?.id ??
+    p.subs.find((x) => x.alive && x.warheads > 0 && x.readyAt === null)?.id ??
     null
   );
 };

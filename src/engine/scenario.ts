@@ -24,7 +24,8 @@ export const DEFAULT_CONFIG: Config = {
   detectDelay: { ICBM: 1, SLBM: 2 },
   subSpinUpTicks: 1,
   overflightCorridorKm: 1500,
-  warheadsPerSiloKill: 150,
+  salvoWarheads: 110,
+  warheadsPerSiloKill: 60,
   lethalityPerWarhead: 0.04,
 };
 
@@ -65,6 +66,7 @@ export function createGame(scenario: ScenarioDef, seed: string): GameState {
           readyAt: null,
           pendingTarget: null,
           revealed: false,
+          alive: true,
         };
       }),
     };

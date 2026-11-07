@@ -14,6 +14,7 @@ import {
   type Order,
   type PowerId,
 } from '../engine/index.js';
+import { describe } from './describe.js';
 import { Globe } from './globe.js';
 
 const $ = <T extends HTMLElement>(id: string): T => {
@@ -49,7 +50,7 @@ function initSetup(): void {
   doctrine.innerHTML = Object.values(AGENTS)
     .map((a) => `<option value="${a.name}">${a.name.replace(/_/g, ' ').toLowerCase()}</option>`)
     .join('');
-  doctrine.value = 'SECOND_STRIKE';
+  doctrine.value = 'PARANOID';
 
   const syncPowers = () => {
     const s = SCENARIOS[scen.value]!;
@@ -255,6 +256,9 @@ function renderAll(): void {
     )
     .join('');
 
+  $<HTMLSelectElement>('sel-kind').innerHTML = o.releaseAuthorised
+    .map((k) => `<option value="${k}">at ${k.toLowerCase()}</option>`)
+    .join('');
   const canLaunch = o.releaseAuthorised.length > 0 && unitSel.options.length > 0;
   $<HTMLButtonElement>('btn-launch').disabled = !canLaunch || ui.animating;
   $<HTMLButtonElement>('btn-defcon-down').disabled = me().defcon <= 1 || ui.animating;
@@ -293,29 +297,6 @@ function appendLog(events: readonly BrinkEvent[]): void {
     if (e.type === 'impact' || (e.type === 'launch' && e.payload.automatic)) li.className = 'alarm';
     li.innerHTML = `<span class="at">min ${e.t}</span><span class="what">${line}</span>`;
     log.prepend(li);
-  }
-}
-
-function describe(e: BrinkEvent): string | null {
-  switch (e.type) {
-    case 'match_start':
-      return `match begins · ${e.payload.powers.length} powers · seed ${e.payload.seed}`;
-    case 'defcon_change':
-      return `${e.payload.power} readiness ${e.payload.from} → ${e.payload.to}`;
-    case 'doctrine_change':
-      return `${e.payload.power} standing order → ${e.payload.to.replace(/_/g, ' ').toLowerCase()}`;
-    case 'sub_spinup':
-      return `${e.payload.power} sea-based launch spinning up (${e.payload.unit})`;
-    case 'launch':
-      return `${e.payload.from} launched ${e.payload.warheads} warheads at ${e.payload.targetPower} ${e.payload.targetKind.toLowerCase()}${e.payload.automatic ? ' — AUTOMATIC, no human ordered this' : ''}`;
-    case 'impact':
-      return `impact on ${e.payload.targetPower}: ${e.payload.popKilled}M killed${e.payload.unitDestroyed ? `, ${e.payload.unitDestroyed} destroyed` : ''}`;
-    case 'invalid_order':
-      return `order rejected (${e.payload.power}): ${e.payload.reason}`;
-    case 'match_end':
-      return `match over — ${e.payload.reason.replace(/_/g, ' ')}`;
-    default:
-      return null;
   }
 }
 

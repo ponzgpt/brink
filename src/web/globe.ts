@@ -4,7 +4,8 @@
  * never show something a replay cannot reconstruct.
  */
 import * as THREE from 'three';
-import type { City, GameState, Trace } from '../engine/index.js';
+import coastline from '../../data/coastline.json' with { type: 'json' };
+import type { City, Trace } from '../engine/index.js';
 
 const R = 1;
 const PHOSPHOR = 0xe8a33d;
@@ -31,7 +32,6 @@ export class Globe {
   private cityPoints: THREE.Points | null = null;
   private cityOrder: string[] = [];
   private spin = true;
-  private disposed = false;
   private target: { x: number; y: number } | null = null;
 
   constructor(private readonly canvas: HTMLCanvasElement) {
@@ -44,6 +44,7 @@ export class Globe {
     this.world.add(this.arcs, this.marks);
     this.buildSphere();
     this.buildGraticule();
+    this.buildCoastline();
     this.attachDrag();
     this.resize();
   }
@@ -83,7 +84,32 @@ export class Globe {
     this.world.add(
       new THREE.LineSegments(
         g,
-        new THREE.LineBasicMaterial({ color: PHOSPHOR_2, transparent: true, opacity: 0.22 }),
+        new THREE.LineBasicMaterial({ color: PHOSPHOR_2, transparent: true, opacity: 0.12 }),
+      ),
+    );
+  }
+
+  /** Natural Earth 1:110m, baked to a flat point list at build time. Drawn brighter
+   *  than the graticule so the eye reads land first and the grid second. */
+  private buildCoastline(): void {
+    const pts: number[] = [];
+    for (const line of coastline.lines) {
+      for (let i = 0; i < line.length - 1; i++) {
+        const a = line[i]!;
+        const b = line[i + 1]!;
+        // A segment that wraps the antimeridian would otherwise cut across the globe.
+        if (Math.abs(a[0]! - b[0]!) > 180) continue;
+        const va = toVec3(a[1]!, a[0]!, R * 1.002);
+        const vb = toVec3(b[1]!, b[0]!, R * 1.002);
+        pts.push(va.x, va.y, va.z, vb.x, vb.y, vb.z);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    this.world.add(
+      new THREE.LineSegments(
+        g,
+        new THREE.LineBasicMaterial({ color: PHOSPHOR_2, transparent: true, opacity: 0.85 }),
       ),
     );
   }
@@ -212,7 +238,6 @@ export class Globe {
   }
 
   render(dt: number): void {
-    if (this.disposed) return;
     if (this.spin) {
       this.world.rotation.y += dt * 0.04;
     } else if (this.target) {
@@ -287,11 +312,6 @@ export class Globe {
       },
       { passive: false },
     );
-  }
-
-  dispose(): void {
-    this.disposed = true;
-    this.renderer.dispose();
   }
 }
 

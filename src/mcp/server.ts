@@ -58,7 +58,7 @@ server.registerTool(
       opponentDoctrine: z
         .enum(Object.keys(AGENTS) as [DoctrineName, ...DoctrineName[]])
         .optional()
-        .describe('Scripted behaviour for every other power. Default SECOND_STRIKE.'),
+        .describe('Scripted behaviour for every other power. Default PARANOID.'),
     },
   },
   async ({ scenario, power, seed, opponentDoctrine }) => {
@@ -68,13 +68,12 @@ server.registerTool(
       return text(`Power ${power} is not in ${scenario}. Available: ${scen.powers.join(', ')}`);
     const match = startMatch(scen, seed ?? `mcp-${Date.now()}`);
     const opponents: Record<PowerId, DoctrineName> = {};
-    for (const p of scen.powers)
-      if (p !== power) opponents[p] = opponentDoctrine ?? 'SECOND_STRIKE';
+    for (const p of scen.powers) if (p !== power) opponents[p] = opponentDoctrine ?? 'PARANOID';
     session = { match, you: power, opponents };
     return text(
       [
         `${scen.name} — ${scen.summary}`,
-        `You command ${power}. Opponents: ${opponentDoctrine ?? 'SECOND_STRIKE'}.`,
+        `You command ${power}. Opponents: ${opponentDoctrine ?? 'PARANOID'}.`,
         '',
         renderObservation(observe(match.state, power)),
       ].join('\n'),

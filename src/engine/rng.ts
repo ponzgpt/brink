@@ -52,7 +52,3 @@ export function pick<T>(s: RngState, xs: readonly T[]): T {
 export function chance(s: RngState, p: number): boolean {
   return rand(s) < p;
 }
-
-export function cloneRng(s: RngState): RngState {
-  return { a: s.a, b: s.b, c: s.c, d: s.d };
-}

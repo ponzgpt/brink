@@ -31,17 +31,12 @@ export function startMatch(scenario: ScenarioDef, seed: string): Match {
     for (const o of scenario.opening) {
       opening[o.from] = [{ kind: 'LAUNCH', unit: o.unit, targetPower: o.to, targetKind: 'CITIES' }];
     }
-    const r = step({ ...state, powers: forceRelease(state, Object.keys(opening)) }, opening);
+    // No readiness override needed: a scenario that opens with a strike starts the
+    // launching power at a readiness that releases it.
+    const r = step(state, opening);
     return { state: r.state, events: [...events, ...r.events] };
   }
   return { state, events };
-}
-
-/** An opening strike is a scenario premise, not a player decision, so it bypasses the gate. */
-function forceRelease(s: GameState, powers: PowerId[]): GameState['powers'] {
-  const out = structuredClone(s.powers);
-  for (const p of powers) if (out[p]) out[p]!.defcon = 1;
-  return out;
 }
 
 export function advance(m: Match, orders: Record<PowerId, Order[]>): Match {

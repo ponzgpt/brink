@@ -14,11 +14,17 @@ import {
   scoreMatch,
   startMatch,
   type DoctrineName,
+  type Match,
   type Order,
   type PowerId,
 } from '../src/engine/index.js';
 
 const SCEN = SCENARIOS['standoff']!;
+
+/** Reports carry their own id; the trace they describe is recovered from state. */
+function traceOf(m: Match, reportId: string): string | null {
+  return m.state.reports.find((r) => r.id === reportId)?.traceId ?? null;
+}
 
 describe('geometry', () => {
   it('puts Moscow→Washington near the ~26 minute figure the literature cites', () => {
@@ -148,17 +154,43 @@ describe('launch, flight and impact', () => {
     expect(m.state.traces.length).toBe(1);
   });
 
-  it('expends the unit so the same warheads cannot fly twice', () => {
-    let m = startMatch(SCENARIOS['regional']!, 'expend');
+  it('draws a salvo down from the unit and refuses once it is empty', () => {
+    let m = startMatch(SCENARIOS['regional']!, 'salvo');
+    const salvo = m.state.config.salvoWarheads;
+    const start = m.state.powers['IND']!.silos[0]!.warheads;
+    m = advance(m, { IND: [{ kind: 'SET_DEFCON', level: 1 }] });
+
+    const fire = (x: Match) =>
+      advance(x, {
+        IND: [{ kind: 'LAUNCH', unit: 'in-silo-1', targetPower: 'PAK', targetKind: 'CITIES' }],
+      });
+
+    m = fire(m);
+    expect(m.state.powers['IND']!.silos[0]!.warheads).toBe(start - salvo);
+
+    // A unit keeps firing until it runs dry: one shot per unit left arsenals unused.
+    let guard = 0;
+    while (m.state.powers['IND']!.silos[0]!.warheads > 0 && guard++ < 20) m = fire(m);
+    expect(m.state.powers['IND']!.silos[0]!.warheads).toBe(0);
+
+    const again = fire(m);
+    expect(
+      again.events.some((e) => e.type === 'invalid_order' && e.payload.reason.includes('empty')),
+    ).toBe(true);
+  });
+
+  it('lets a revealed boat be hunted, but not a silent one', () => {
+    let m = startMatch(SCENARIOS['regional']!, 'hunt');
+    const sub = () => m.state.powers['IND']!.subs[0]!;
+    expect(sub().revealed).toBe(false);
+
     m = advance(m, { IND: [{ kind: 'SET_DEFCON', level: 1 }] });
     m = advance(m, {
-      IND: [{ kind: 'LAUNCH', unit: 'in-silo-1', targetPower: 'PAK', targetKind: 'CITIES' }],
+      IND: [{ kind: 'LAUNCH', unit: 'in-sub-1', targetPower: 'PAK', targetKind: 'CITIES' }],
     });
-    expect(m.state.powers['IND']!.silos[0]!.warheads).toBe(0);
-    const again = advance(m, {
-      IND: [{ kind: 'LAUNCH', unit: 'in-silo-1', targetPower: 'PAK', targetKind: 'CITIES' }],
-    });
-    expect(again.events.some((e) => e.type === 'invalid_order')).toBe(true);
+    m = advance(m, {}); // spin-up completes, the boat fires and gives itself away
+    expect(sub().revealed).toBe(true);
+    expect(sub().alive).toBe(true);
   });
 });
 
@@ -194,7 +226,8 @@ describe('early warning', () => {
     );
   });
 
-  it('misattributes some reports, which is what makes a third party escalate', () => {
+  it('gets attribution wrong often enough to matter, and right often enough to trust', () => {
+    let total = 0;
     let wrong = 0;
     for (let i = 0; i < 40; i++) {
       const m = playScripted(SCENARIOS['regional']!, `attr-${i}`, {
@@ -204,13 +237,21 @@ describe('early warning', () => {
         RUS: 'PASSIVE',
         USA: 'PASSIVE',
       }).match;
-      const real = m.events.filter((e) => e.type === 'detection_report' && e.payload.real);
-      if (real.some((e) => e.type === 'detection_report' && e.payload.originGuess === null))
-        wrong++;
+      for (const e of m.events) {
+        if (e.type !== 'detection_report' || !e.payload.real) continue;
+        total++;
+        const traceId = m.state.reports.find((r) => r.id === e.payload.reportId)?.traceId ?? null;
+        const launch = m.events.find((x) => x.type === 'launch' && x.payload.traceId === traceId);
+        const misdirected =
+          launch?.type === 'launch' && launch.payload.targetPower !== e.payload.destGuess;
+        if (e.payload.originGuess === null || misdirected) wrong++;
+      }
     }
-    // Neither decorative (never) nor dominant (always).
-    expect(wrong).toBeGreaterThan(2);
-    expect(wrong).toBeLessThan(40);
+    expect(total).toBeGreaterThan(50);
+    // Neither decorative (never wrong) nor dominant (never usable).
+    const rate = wrong / total;
+    expect(rate).toBeGreaterThan(0.05);
+    expect(rate).toBeLessThan(0.8);
   });
 });
 
