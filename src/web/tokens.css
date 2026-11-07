@@ -1,26 +1,45 @@
-/* Single source of colour and type for the game, the viewer and the page.
-   Two registers held in tension: DOCUMENT (paper, ink, rules) is the chrome;
-   SCREEN (board, phosphor) appears only inside the globe frame, as though a
-   console were photographed inside a printed report. Amber, not green: command
-   CRTs used amber phosphor as much as green, and green is burnt out by cinema. */
+/* BRINK visual language.
+ *
+ * Register: a Cold War command console seen from the American side — SAC and
+ * NORAD hardware, not Soviet constructivism. Olive-charcoal housing, bone
+ * lettering, amber phosphor behind glass, caution yellow and warning red used
+ * only where something is actually being warned about.
+ *
+ * Two clichés deliberately avoided: green-on-black terminal (burnt out by
+ * cinema) and black-on-white report (reads as a spreadsheet, not a machine).
+ * Amber on olive is the choice, and it is a choice: command CRTs of the period
+ * used amber phosphor as readily as green.
+ */
 :root {
-  --paper: #e3e1da;
-  --paper-2: #d8d5cc;
-  --ink: #1a1a17;
-  --ink-soft: #5a574e;
-  --rule: #b8b4a8;
-  --stamp: #a3261e;
+  /* housing */
+  --hull: #151813;
+  --panel: #1e221b;
+  --panel-2: #262b22;
+  --bezel-hi: #3c4236;
+  --bezel-lo: #0c0e0a;
+  --rule: #343a2e;
 
-  --board: #0d1512;
+  /* lettering */
+  --bone: #d6d2c4;
+  --bone-dim: #938e7d;
+
+  /* signal */
   --phosphor: #e8a33d;
   --phosphor-2: #8c6a2b;
-  --alarm: #d9533b;
+  --caution: #d9a72a;
+  --alarm: #c8402e;
+  --alarm-text: #e8705c;
+  --blueprint: #6aa3b0;
 
-  --defcon-5: #5a574e;
-  --defcon-4: #7d7a6c;
-  --defcon-3: #c9962e;
+  /* screen interior */
+  --board: #0b110e;
+
+  /* readiness ramp: calm grey-green through caution to warning */
+  --defcon-5: #5c6352;
+  --defcon-4: #7d7a52;
+  --defcon-3: #d9a72a;
   --defcon-2: #e8a33d;
-  --defcon-1: #a3261e;
+  --defcon-1: #c8402e;
 
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
@@ -42,59 +61,78 @@ body {
 }
 
 body {
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--hull);
+  color: var(--bone);
   font-family: var(--serif);
   font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
 }
 
-/* The paper register has no rounded corners and no diffuse shadows: a rule or a
-   change of background does the separating. */
+/* A rule is a seam between panels, not decoration. */
 .rule {
   border: 0;
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid var(--bezel-lo);
+  border-bottom: 1px solid var(--bezel-hi);
   margin: 0;
 }
 
+/* Controls are panel-mounted switches: square, embossed, legible when off. */
 button,
-select {
+select,
+input[type='file'] {
   font-family: var(--mono);
   font-size: 12px;
-  color: var(--ink);
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 0;
-  padding: 6px 10px;
+  letter-spacing: 0.04em;
+  color: var(--bone);
+  background: linear-gradient(var(--panel-2), var(--panel));
+  border: 1px solid var(--bezel-lo);
+  border-top-color: var(--bezel-hi);
+  border-radius: 1px;
+  padding: 7px 11px;
   cursor: pointer;
 }
 
-button:hover:not(:disabled) {
-  background: var(--paper-2);
+button:hover:not(:disabled),
+select:hover {
+  background: linear-gradient(var(--bezel-hi), var(--panel-2));
+}
+
+button:active:not(:disabled) {
+  background: var(--bezel-lo);
+  border-top-color: var(--bezel-lo);
 }
 
 button:disabled {
-  color: var(--rule);
+  color: #5d5b51;
+  background: var(--panel);
   cursor: not-allowed;
 }
 
 button:focus-visible,
 select:focus-visible,
-[tabindex]:focus-visible {
-  outline: 2px solid var(--stamp);
-  outline-offset: 1px;
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--phosphor);
+  outline-offset: 2px;
 }
 
+/* A stencilled classification mark. Used on live readiness only. */
 .stamp {
   font-family: var(--mono);
   font-size: 11px;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--stamp);
-  border: 1px solid var(--stamp);
-  padding: 2px 6px;
+  color: var(--alarm-text);
+  border: 1px solid var(--alarm);
+  background: rgba(200, 64, 46, 0.12);
+  padding: 2px 7px;
   display: inline-block;
+}
+
+a {
+  color: var(--blueprint);
+  text-underline-offset: 2px;
 }
 
 @media (prefers-reduced-motion: reduce) {

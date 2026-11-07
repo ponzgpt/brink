@@ -15,7 +15,7 @@ import {
   type PowerId,
 } from '../engine/index.js';
 import { describe } from './describe.js';
-import { Globe } from './globe.js';
+import type { Globe } from './globe.js';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -62,7 +62,7 @@ function initSetup(): void {
   scen.addEventListener('change', syncPowers);
   syncPowers();
 
-  $('btn-start').addEventListener('click', () => {
+  $('btn-start').addEventListener('click', async () => {
     const s = SCENARIOS[scen.value]!;
     const you = $<HTMLSelectElement>('sel-power').value;
     const name = doctrine.value as DoctrineName;
@@ -81,6 +81,9 @@ function initSetup(): void {
     $('result').hidden = true;
     $('game').hidden = false;
     if (!globe) {
+      // three.js is a third of the download and nobody reading the page needs it,
+      // so it is fetched when someone actually starts a match.
+      const { Globe } = await import('./globe.js');
       globe = new Globe($<HTMLCanvasElement>('globe'));
       window.addEventListener('resize', () => globe?.resize());
     }

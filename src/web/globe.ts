@@ -36,7 +36,7 @@ export class Globe {
 
   constructor(private readonly canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
-    this.renderer.setClearColor(0x0d1512, 1);
+    this.renderer.setClearColor(0x0b110e, 1);
     this.camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
     this.camera.position.set(0, 0.9, 3.1);
     this.camera.lookAt(0, 0, 0);
@@ -52,7 +52,7 @@ export class Globe {
   private buildSphere(): void {
     const body = new THREE.Mesh(
       new THREE.SphereGeometry(R * 0.995, 64, 48),
-      new THREE.MeshBasicMaterial({ color: 0x0d1512 }),
+      new THREE.MeshBasicMaterial({ color: 0x0b110e }),
     );
     this.world.add(body);
     const halo = new THREE.LineSegments(

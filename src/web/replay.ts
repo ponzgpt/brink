@@ -1,7 +1,7 @@
 import { SCENARIOS, playScripted, type BrinkEvent, type PowerId } from '../engine/index.js';
 import { describe } from './describe.js';
 import { fold, maxTickOf, parseJsonl, type FoldedFrame } from './fold.js';
-import { Globe } from './globe.js';
+import type { Globe } from './globe.js';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -17,7 +17,7 @@ let stepMs = 1000;
 let lastStep = 0;
 let seenImpacts = new Set<string>();
 
-function load(evts: BrinkEvent[]): void {
+async function load(evts: BrinkEvent[]): Promise<void> {
   events = evts;
   if (events.length === 0) {
     $('picker-note').textContent = 'That file has no events in it.';
@@ -26,6 +26,7 @@ function load(evts: BrinkEvent[]): void {
   $('picker').hidden = true;
   $('player').hidden = false;
   if (!globe) {
+    const { Globe } = await import('./globe.js');
     globe = new Globe($<HTMLCanvasElement>('globe'));
     window.addEventListener('resize', () => globe?.resize());
   }
@@ -102,7 +103,7 @@ $<HTMLInputElement>('file').addEventListener('change', async (e) => {
   const f = (e.target as HTMLInputElement).files?.[0];
   if (!f) return;
   try {
-    load(parseJsonl(await f.text()));
+    await load(parseJsonl(await f.text()));
   } catch {
     $('picker-note').textContent = 'That file is not a BRINK event log.';
   }
@@ -110,11 +111,11 @@ $<HTMLInputElement>('file').addEventListener('change', async (e) => {
 
 /** A sample is generated rather than shipped: the engine is deterministic, so the
  *  seed below always produces the same match and there is no fixture to go stale. */
-$('btn-sample').addEventListener('click', () => {
+$('btn-sample').addEventListener('click', async () => {
   const scen = SCENARIOS['twenty-six-minutes']!;
   const assignment: Record<PowerId, 'PARANOID'> = {};
   for (const p of scen.powers) assignment[p] = 'PARANOID';
-  load(playScripted(scen, 'sample-001', assignment).match.events);
+  await load(playScripted(scen, 'sample-001', assignment).match.events);
 });
 
 $('btn-play').addEventListener('click', () => {

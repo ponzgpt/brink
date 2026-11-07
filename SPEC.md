@@ -111,13 +111,29 @@ fixed — never that the threshold should move.
 - A launch targets a power and a target class; the engine picks the aimpoint. This keeps
   the order space small enough for a small model to be reliable, at the cost of
   targeting nuance.
-- The browser bundle is ~157 kB gzipped, nearly all of it three.js, loaded eagerly.
+- The 3D library is ~147 kB gzipped. It is loaded on demand, so first paint costs
+  about 15 kB, but anyone who starts a match still pays for it.
 - Scripted doctrines are cautious, so an unattended round-robin stays fairly peaceful.
   That is fine for the gate, which measures separation rather than drama, but it means
   the balance table understates how violent a human or agent match becomes.
 - No model has played a match yet. The protocol is verified; the behaviour is not.
 
-## 8. Design stance
+## 8. Visual register
+
+A Cold War command console seen from the American side: olive-charcoal housing, bone
+lettering, amber phosphor behind glass, caution yellow and warning red used only where
+something is being warned about. Tokens live in `src/web/tokens.css` and nowhere else.
+
+Two defaults were rejected on the way here. Green-on-black terminal is burnt out by
+cinema and signals "hacker project" rather than "instrument". Black-on-white document
+reads as a spreadsheet and makes the one screen on the page look pasted in. The whole
+page is now the housing and the globe is the glass, which is why the bezel is the
+heaviest border in the stylesheet.
+
+No Soviet iconography, no real leaders, no mushroom clouds, no casualty counter as a
+hook. Population is a number on a panel.
+
+## 9. Design stance
 
 Where realism and playability conflict, playability wins and the deviation is written
 down. Readiness releases a level earlier than the ladder would suggest, salvos exist so
@@ -126,7 +142,7 @@ all three because a match that spends its first three minutes doing nothing is a
 game, not a more honest one. The things that stay faithful are the ones a reader can
 check: the arsenals, the distances, and the flight times that fall out of them.
 
-## 9. Deliberately deferred
+## 10. Deliberately deferred
 
 Global leaderboard with accounts and a database. A client that reports its own score is
 trivially forgeable; the fix is server-side replay verification, which the deterministic
