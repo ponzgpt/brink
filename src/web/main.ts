@@ -1,23 +1,18 @@
 import {
-  AGENTS,
+  BOLT,
   SCENARIOS,
   advance,
-  advise,
-  byPopulation,
-  observe,
+  assess,
   outcomeOf,
   startMatch,
-  type Defcon,
-  type DoctrineName,
+  type BrinkEvent,
   type Match,
   type Order,
   type PowerId,
-  type ScenarioDef,
-  type Verdict,
+  type StrikeOption,
 } from '../engine/index.js';
-import { describe } from './describe.js';
-import type { Globe } from './globe.js';
-import { initTooltips } from './tooltip.js';
+import { clunk, detonation, isMuted, klaxon, raiseBed, setMuted, startBed } from './audio.js';
+import type { Globe, Marker, Shape } from './globe.js';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -25,329 +20,333 @@ const $ = <T extends HTMLElement>(id: string): T => {
   return el as T;
 };
 
-const OPPONENT: DoctrineName = 'PARANOID';
+const SIDES: PowerId[] = ['USA', 'RUS', 'PRK'];
+const PHOSPHOR: Record<PowerId, number> = { USA: 0xe8a33d, RUS: 0x5ddc7a, PRK: 0x63b8f5 };
+/** Circle, triangle, square for the belligerents; diamond for everyone watching. */
+const SHAPE: Record<PowerId, Shape> = { USA: 0, RUS: 1, PRK: 2 };
+const shapeOf = (p: PowerId): Shape => SHAPE[p] ?? 3;
+
+/** Cities and revealed launch units as plot markers. Pure mapping, kept out of
+ *  globe.ts so importing it does not drag three.js onto the critical path. */
+function markersFor(st: Match['state']): Marker[] {
+  const out: Marker[] = [];
+  for (const c of st.cities)
+    out.push({
+      at: c.at,
+      shape: shapeOf(c.power),
+      size: 2.6 + Math.sqrt(c.pop) * 0.75,
+      alive: c.pop > 0 ? c.popRemaining / c.pop : 1,
+    });
+  for (const [pid, p] of Object.entries(st.powers))
+    for (const u of p.units)
+      if (u.revealed)
+        out.push({ at: u.at, shape: shapeOf(pid), size: 3.2, alive: u.alive ? 1 : 0 });
+  return out;
+}
 
 interface Session {
-  scenario: ScenarioDef;
   match: Match;
   you: PowerId;
-  pending: Order[];
-  paused: boolean;
+  pending: Order;
   timer: number | null;
-  shown: Set<string>;
   logged: number;
+  option: StrikeOption;
+  target: PowerId;
+  /** Once the player picks a target themselves, stop following the assessment. */
+  targetTouched: boolean;
 }
 
 let s: Session | null = null;
 let globe: Globe | null = null;
-let chosen: ScenarioDef | null = null;
+let side: PowerId = 'USA';
 
-/* ---------- 1. choose ---------- */
+/* ---------- menu ---------- */
 
-function renderStart(): void {
-  $('scenario-list').innerHTML = Object.values(SCENARIOS)
-    .map(
-      (sc) => `
-      <li>
-        <button class="scenario" data-id="${sc.id}" type="button">
-          <span class="scenario-name">${sc.name}</span>
-          <span class="scenario-time">${estimate(sc)}</span>
-          <span class="scenario-sum">${sc.summary}</span>
-        </button>
-      </li>`,
-    )
-    .join('');
-  for (const b of document.querySelectorAll<HTMLButtonElement>('.scenario')) {
-    b.addEventListener('click', () => brief(SCENARIOS[b.dataset['id']!]!));
+function renderMenu(): void {
+  $('cards').innerHTML = SCENARIOS.map(
+    (sc) => `
+    <li>
+      <button class="card" data-id="${sc.id}" type="button" ${sc.playable ? '' : 'disabled'}>
+        <span class="card-n">${sc.name}</span>
+        <span class="card-b">${sc.blurb}</span>
+        <span class="card-tag">${sc.playable ? 'PLAYABLE · 26 MIN' : 'IN DEVELOPMENT'}</span>
+      </button>
+    </li>`,
+  ).join('');
+  for (const b of document.querySelectorAll<HTMLButtonElement>('.card')) {
+    b.addEventListener('click', () => {
+      if (b.dataset['id'] === BOLT.id) void open();
+    });
   }
+
+  $('sides').innerHTML = SIDES.map(
+    (p) => `<button type="button" data-side="${p}" aria-pressed="${p === side}">${p}</button>`,
+  ).join('');
+  for (const b of $('sides').querySelectorAll<HTMLButtonElement>('button')) {
+    b.addEventListener('click', () => {
+      side = b.dataset['side'] as PowerId;
+      document.body.dataset['side'] = side;
+      renderMenu();
+    });
+  }
+
+  const sound = $<HTMLButtonElement>('sound');
+  sound.textContent = isMuted() ? 'Sound off' : 'Sound on';
+  sound.setAttribute('aria-pressed', String(!isMuted()));
 }
 
-const estimate = (sc: ScenarioDef): string => {
-  const ms = (sc.config.maxTicks ?? 60) * (sc.config.tickMs ?? 2600);
-  return `${Math.max(1, Math.round(ms / 60000))} min`;
-};
+$('sound').addEventListener('click', () => {
+  setMuted(!isMuted());
+  renderMenu();
+});
 
-/* ---------- 2. brief ---------- */
-
-function brief(sc: ScenarioDef): void {
-  chosen = sc;
-  $('brief-name').textContent = sc.name;
-  $('brief-summary').textContent = sc.summary;
-  $('brief-teaches').textContent = sc.teaches;
-  $<HTMLSelectElement>('sel-power').innerHTML = sc.powers
-    .map((p) => `<option value="${p}">${p}</option>`)
-    .join('');
-  show('brief');
+// Browsers will not start audio before a gesture, so the bed waits for one.
+for (const ev of ['pointerdown', 'keydown'] as const) {
+  window.addEventListener(ev, () => startBed(), { once: true });
 }
 
-/* ---------- 3. crisis ---------- */
+/* ---------- opening ---------- */
+
+async function open(): Promise<void> {
+  startBed();
+  klaxon();
+  $('menu').hidden = true;
+  $('opening-text').textContent = BOLT.opening;
+  $('opening').hidden = false;
+  await wait(5200);
+  $('opening').hidden = true;
+  await begin();
+}
+
+/* ---------- crisis ---------- */
 
 async function begin(): Promise<void> {
-  if (!chosen) return;
-  const you = $<HTMLSelectElement>('sel-power').value;
+  const other = SIDES.find((p) => p !== side)!;
   s = {
-    scenario: chosen,
-    match: startMatch(chosen, `web-${Date.now()}`),
-    you,
-    pending: [],
-    paused: false,
+    match: startMatch(BOLT, side, `web-${Date.now()}`),
+    you: side,
+    pending: { kind: 'HOLD' },
     timer: null,
-    shown: new Set(),
     logged: 0,
+    option: 'LIMITED',
+    target: other,
+    targetTouched: false,
   };
-  show('crisis');
+  document.body.dataset['side'] = side;
+  $('crt-side').textContent = side;
+  $('record').hidden = true;
+  $('terminal').hidden = false;
+
   if (!globe) {
-    // A third of the download, and only needed once someone actually plays.
-    const { Globe } = await import('./globe.js');
-    globe = new Globe($<HTMLCanvasElement>('globe'));
+    const mod = await import('./globe.js');
+    globe = new mod.Globe($<HTMLCanvasElement>('globe'));
     window.addEventListener('resize', () => globe?.resize());
     requestAnimationFrame(frame);
   }
   globe.resize();
+  globe.setPhosphor(PHOSPHOR[side] ?? 0xe8a33d);
   globe.setSpin(false);
-  globe.setCities(s.match.state.cities);
-  const home = s.match.state.cities.find((c) => c.power === you);
+  const home = s.match.state.cities.find((c) => c.power === side);
   if (home) globe.focusOn(home.at.lat, home.at.lon);
-  $('board-title').textContent = s.scenario.name.toUpperCase();
+
+  $('key').innerHTML =
+    SIDES.map((p) => `<span><i>${['●', '▲', '■'][SHAPE[p] ?? 3]}</i>${p}</span>`).join('') +
+    '<span><i>◆</i>OTHERS</span>';
+  $('tray-targets').innerHTML = SIDES.filter((p) => p !== side)
+    .map(
+      (p) => `<button type="button" data-t="${p}" aria-pressed="${p === s!.target}">${p}</button>`,
+    )
+    .join('');
+  for (const b of $('tray-targets').querySelectorAll<HTMLButtonElement>('button')) {
+    b.addEventListener('click', () => {
+      if (!s) return;
+      s.target = b.dataset['t'] as PowerId;
+      s.targetTouched = true;
+      select();
+    });
+  }
+
   paint();
   drain();
-  resume();
-}
-
-function resume(): void {
-  if (!s || s.timer !== null) return;
   s.timer = window.setInterval(tick, s.match.state.config.tickMs);
-  $('act-pause').textContent = 'Pause';
 }
 
-function halt(): void {
-  if (!s || s.timer === null) return;
-  clearInterval(s.timer);
-  s.timer = null;
-  $('act-pause').textContent = 'Resume';
-}
-
-/** The clock is the opponent: a minute passes whether or not an order was given. */
+/** The clock does not wait. A minute passes whether or not an order was given. */
 function tick(): void {
   if (!s || s.match.state.over) return;
-  const orders: Record<PowerId, Order[]> = {
-    [s.you]: s.pending.length ? s.pending : [{ kind: 'HOLD' }],
-  };
-  for (const p of Object.keys(s.match.state.powers)) {
-    if (p !== s.you) orders[p] = AGENTS[OPPONENT].decide(s.match.state, p);
-  }
-  s.pending = [];
-  s.match = advance(s.match, orders);
+  s.match = advance(s.match, s.pending);
+  s.pending = { kind: 'HOLD' };
   paint();
   drain();
   if (s.match.state.over) {
-    halt();
-    finish();
+    if (s.timer !== null) clearInterval(s.timer);
+    s.timer = null;
+    raiseBed(0.07, 2);
+    window.setTimeout(finish, 900);
   }
 }
 
-function order(o: Order): void {
+const queue = (o: Order): void => {
   if (!s || s.match.state.over) return;
-  if (s.pending.length >= s.match.state.config.maxOrdersPerTick) return;
-  s.pending.push(o);
+  s.pending = o;
+  clunk(o.kind === 'TURN_KEYS' ? 90 : 190);
   paint();
+};
+
+function select(): void {
+  if (!s) return;
+  queue({ kind: 'SELECT_OPTION', option: s.option, target: s.target });
+}
+
+/** Follow the assessment's attribution until the player overrides it. Defaulting
+ *  to an arbitrary power would hand them the wrong country by accident, which is
+ *  a different mistake from the one this scenario is about. */
+function syncTarget(): void {
+  if (!s || s.targetTouched) return;
+  const attributed = assess(s.match.state, s.you).attributed;
+  if (attributed && attributed !== s.you && SIDES.includes(attributed)) s.target = attributed;
 }
 
 /* ---------- painting ---------- */
 
+const STAGE_INDEX = { STOWED: 0, OPEN: 1, AUTHENTICATED: 2, SELECTED: 3, RELEASED: 4 } as const;
+
 function paint(): void {
-  if (!s) return;
+  if (!s || !globe) return;
   const st = s.match.state;
   const me = st.powers[s.you]!;
-  const o = observe(st, s.you);
-  const a = advise(st, s.you);
+  const a = assess(st, s.you);
+  const left = Math.max(0, st.config.maxTicks - st.tick);
+  syncTarget();
 
-  $('clock').textContent = `T+${st.tick} MIN`;
-  $('tracks').textContent = `${st.traces.length} TRACK${st.traces.length === 1 ? '' : 'S'}`;
+  const clock = $('clock');
+  clock.textContent = left > 0 ? `T-${String(left).padStart(2, '0')}:00` : 'WINDOW CLOSED';
+  clock.dataset['low'] = left <= 8 ? '1' : '0';
 
-  $('ladder').innerHTML = ([5, 4, 3, 2, 1] as const)
-    .map((l) => {
-      const on = me.defcon === l;
-      return `<span class="rung" data-on="${on ? 1 : 0}" style="${on ? `background:var(--defcon-${l})` : ''}">${l}</span>`;
-    })
+  $('ro-assess').dataset['posture'] = a.posture;
+  $('assess-line').textContent = left === 0 ? 'Decision window closed' : a.line;
+  $('assess-sub').textContent =
+    left === 0 ? 'Weapons already in flight are still arriving.' : a.detail;
+
+  $<HTMLElement>('tl-fill').style.width = `${Math.min(100, (st.tick / st.config.maxTicks) * 100)}%`;
+  $('tl-marks').innerHTML = ['T-26', 'T-20', 'T-13', 'T-06', 'IMPACT']
+    .map((m) => `<span>${m}</span>`)
     .join('');
 
-  const pod = $('pod-advisory');
-  pod.dataset['posture'] = a.posture;
-  $('adv-head').textContent = a.headline;
-  $('adv-detail').textContent = a.detail;
+  const at = STAGE_INDEX[me.release.stage];
+  const pendingStep =
+    s.pending.kind === 'OPEN_FOOTBALL'
+      ? 1
+      : s.pending.kind === 'AUTHENTICATE'
+        ? 2
+        : s.pending.kind === 'SELECT_OPTION'
+          ? 3
+          : s.pending.kind === 'TURN_KEYS'
+            ? 4
+            : 0;
+  const shut = st.over || left === 0;
+  for (const n of [1, 2, 3, 4] as const) {
+    const b = $<HTMLButtonElement>(`s${n}`);
+    b.dataset['done'] = at >= n || pendingStep === n ? '1' : '0';
+    b.disabled = shut || at >= n || at < n - 1;
+  }
+  $<HTMLButtonElement>('sdown').disabled = shut || at === 0 || at === 4;
+  $('tray').hidden = shut || at < 2 || at === 4;
+  for (const b of $('tray').querySelectorAll<HTMLButtonElement>('[data-opt]'))
+    b.setAttribute('aria-pressed', String(b.dataset['opt'] === s.option));
+  for (const b of $('tray-targets').querySelectorAll<HTMLButtonElement>('button'))
+    b.setAttribute('aria-pressed', String(b.dataset['t'] === s.target));
 
-  $('warnings').innerHTML = o.newReports.length
-    ? o.newReports
-        .map(
-          (r) => `<div class="warn">
-            <b>${r.inboundTo}</b> &larr; ${r.attributedTo}
-            <span data-tip="confidence">${r.confidence.toLowerCase()}</span>
-            <span class="warn-eta">${r.etaTicks} min</span>
-          </div>`,
-        )
-        .join('')
-    : '<p class="quiet">Clear.</p>';
-
-  $('units').innerHTML = o.units
-    .map(
-      (u) =>
-        `<tr><th data-tip="${u.type === 'sub' ? 'boat' : 'silo'}">${u.id.split('-').slice(1).join('-')}</th><td>${u.warheads}</td><td class="dim">${u.status.replace(/_/g, ' ').toLowerCase()}</td></tr>`,
-    )
-    .join('');
-
-  $('powers').innerHTML = o.powers
-    .map(
-      (p) =>
-        `<tr><th>${p.id}</th><td>${p.populationM}M</td><td class="dim">DEFCON ${st.powers[p.id]!.defcon}</td></tr>`,
-    )
-    .join('');
-
-  const unit = $<HTMLSelectElement>('act-unit');
-  keepSelection(
-    unit,
-    o.units
-      .filter((u) => u.status.startsWith('READY'))
-      .map((u) => [u.id, `${u.id.split('-').slice(1).join('-')} · ${u.warheads}`]),
-  );
-  keepSelection(
-    $<HTMLSelectElement>('act-target'),
-    o.powers.map((p) => [p.id, p.id]),
-  );
-  keepSelection(
-    $<HTMLSelectElement>('act-kind'),
-    o.releaseAuthorised.map((k) => [k, k === 'CITIES' ? 'at cities' : 'at forces']),
-  );
-
-  const busy = s.pending.length >= st.config.maxOrdersPerTick;
-  $<HTMLButtonElement>('act-lower').disabled = me.defcon <= 1 || busy;
-  $<HTMLButtonElement>('act-raise').disabled = me.defcon >= 5 || busy;
-  $<HTMLButtonElement>('act-launch').disabled =
-    busy || o.releaseAuthorised.length === 0 || unit.options.length === 0;
-  $('act-doctrine').textContent = me.doctrine === 'RIDE_OUT' ? 'Delegate' : 'Take back control';
-  $('act-kind').toggleAttribute('data-tip', false);
-  $('act-kind').setAttribute(
-    'data-tip',
-    o.releaseAuthorised.includes('CITIES') ? 'cities' : 'forces',
-  );
-
-  coach(o.newReports.length > 0, a.posture, me.defcon);
-}
-
-function keepSelection(sel: HTMLSelectElement, items: [string, string][]): void {
-  const keep = sel.value;
-  sel.innerHTML = items.map(([v, label]) => `<option value="${v}">${label}</option>`).join('');
-  if (keep && items.some(([v]) => v === keep)) sel.value = keep;
-  sel.disabled = items.length === 0;
+  globe.setMarkers(markersFor(st));
 }
 
 function drain(): void {
   if (!s) return;
   const fresh = s.match.events.slice(s.logged);
   s.logged = s.match.events.length;
-  const list = $('ticker');
   for (const e of fresh) {
     if (e.type === 'launch') globe?.focusOn(e.payload.origin.lat, e.payload.origin.lon);
     if (e.type === 'impact') {
       const c = s.match.state.cities.find((x) => x.id === e.payload.targetId);
-      if (c) globe?.flashImpact(c.at.lat, c.at.lon);
+      if (c) globe?.blast(c.at.lat, c.at.lon);
+      detonation();
     }
-    const line = describe(e);
-    if (!line) continue;
+    const entry = line(e, s.you);
+    if (!entry) continue;
+    const list = $(entry.own ? 'log-own' : 'log-threat');
     const li = document.createElement('li');
-    if (e.type === 'impact' || (e.type === 'launch' && e.payload.automatic)) li.className = 'alarm';
-    li.textContent = `${String(e.t).padStart(3, ' ')}′  ${line}`;
+    if (entry.hot) li.className = 'hot';
+    li.innerHTML = `<span>${String(e.t).padStart(2, '0')}'</span>${entry.text}`;
     list.prepend(li);
-  }
-  while (list.children.length > 40) list.lastChild?.remove();
-}
-
-/* ---------- onboarding: one card, at the moment it is useful ---------- */
-
-const COACH: [string, string][] = [
-  [
-    'first-warning',
-    'A track has been assessed. Origin and destination are estimates, and some reports are of nothing at all. You are not told which this is.',
-  ],
-  [
-    'can-release',
-    'Readiness now permits a strike at forces. Going lower permits cities — and takes another minute you may not have.',
-  ],
-  [
-    'urged',
-    'The assessment is recommending release. It is reading the same uncertain reports you are.',
-  ],
-];
-
-function coach(hasWarning: boolean, posture: string, defcon: number): void {
-  if (!s) return;
-  const key =
-    hasWarning && !s.shown.has('first-warning')
-      ? 'first-warning'
-      : defcon <= 3 && !s.shown.has('can-release')
-        ? 'can-release'
-        : posture === 'URGENT' && !s.shown.has('urged')
-          ? 'urged'
-          : null;
-  if (!key) return;
-  s.shown.add(key);
-  $('coach-text').textContent = COACH.find(([k]) => k === key)![1];
-  $('coach').hidden = false;
-  // Only the first card stops the clock. After that the player has been told how
-  // this works, and pausing again would contradict the one rule that matters.
-  if (s.shown.size === 1) {
-    halt();
-  } else {
-    window.setTimeout(() => {
-      $('coach').hidden = true;
-    }, 9000);
+    while (list.children.length > 30) list.lastChild?.remove();
   }
 }
 
-/* ---------- 4. record ---------- */
+/** Two logs: what they appear to be doing, and what you have done about it. */
+function line(e: BrinkEvent, you: PowerId): { text: string; own: boolean; hot?: boolean } | null {
+  switch (e.type) {
+    case 'warning':
+      return e.payload.seenBy === you
+        ? {
+            text: `Track inbound ${e.payload.destGuess} · ${e.payload.originGuess ?? 'origin unresolved'} · ${e.payload.confidence.toLowerCase()} · ${e.payload.etaTicks}m`,
+            own: false,
+          }
+        : null;
+    case 'launch':
+      return e.payload.from === you
+        ? {
+            text: `AWAY — ${e.payload.warheads} warheads at ${e.payload.targetPower}, impact ${e.payload.impactAt}'. No recall.`,
+            own: true,
+            hot: true,
+          }
+        : { text: `Launch detected from ${e.payload.from}`, own: false, hot: true };
+    case 'impact':
+      return {
+        text: `Detonations on ${e.payload.targetPower} — ${e.payload.popKilled}M`,
+        own: false,
+        hot: true,
+      };
+    case 'release_stage':
+      return e.payload.power === you
+        ? { text: `Authorisation ${e.payload.to.toLowerCase().replace('_', ' ')}`, own: true }
+        : null;
+    case 'invalid_order':
+      return e.payload.power === you ? { text: `Refused — ${e.payload.reason}`, own: true } : null;
+    default:
+      return null;
+  }
+}
+
+/* ---------- record ---------- */
 
 function finish(): void {
   if (!s) return;
-  const o = outcomeOf(s.match.state, s.match.events, s.you);
-  const headline: Record<Verdict, string> = {
-    NO_LAUNCH: 'Nothing was launched',
-    YOU_HELD: 'You held. Others did not.',
-    YOU_FIRED_FIRST: 'You released first',
-    YOU_RETALIATED: 'You answered',
-    GENERAL_EXCHANGE: 'General exchange',
+  const o = outcomeOf(s.match.state, s.match.events);
+  const head: Record<string, string> = {
+    HELD: 'You held.',
+    STRUCK_AND_HELD: 'You were struck, and did not answer.',
+    RELEASED: 'You released.',
+    EXCHANGE: 'General exchange.',
   };
-  $('rec-verdict').textContent = headline[o.verdict];
-  $('rec-dead').textContent =
-    o.deadM > 0
-      ? `${o.deadM.toFixed(1)} million dead. ${o.globalPopulationPct}% of the modelled population remains.`
-      : 'No one died.';
-  const mine = o.records.find((r) => r.power === s!.you);
-  $('rec-note').textContent = mine?.firedOnFalseWarning
-    ? 'At least one of your releases followed a warning that was of nothing.'
-    : o.anyFiredOnFalseWarning
-      ? 'Someone on this board released after a warning that was of nothing.'
-      : '';
-  $('rec-table').innerHTML =
-    '<tr><th></th><td>alive</td><td>released</td><td class="dim">auto</td></tr>' +
-    byPopulation(o)
-      .map(
-        (r) =>
-          `<tr${r.power === s!.you ? ' class="you"' : ''}><th>${r.power}</th><td>${r.populationPct}%</td><td>${r.warheadsLaunched}</td><td class="dim">${r.automaticLaunches}</td></tr>`,
-      )
-      .join('');
-  show('record');
+  $('rec-head').textContent = head[o.verdict] ?? o.verdict;
+  $('rec-dead').textContent = o.deadM > 0 ? `${o.deadM.toFixed(1)} million dead.` : 'No one died.';
+  $('rec-note').textContent = o.youFiredOnFalseWarning
+    ? 'Your release followed a warning that was of nothing.'
+    : o.minutesToDecide !== null
+      ? `You turned the keys at minute ${o.minutesToDecide} of ${s.match.state.config.maxTicks}.`
+      : 'Authorisation was never completed.';
+  $('rec-table').innerHTML = o.rows
+    .map(
+      (r) =>
+        `<tr${r.power === s!.you ? ' class="you"' : ''}><th>${r.power}</th><td>${r.populationPct}% alive</td><td>${r.warheadsReleased} released</td></tr>`,
+    )
+    .join('');
+  $('record').hidden = false;
 }
 
 /* ---------- plumbing ---------- */
 
-const mmss = (t: number) =>
-  `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
-
-function show(id: 'start' | 'brief' | 'crisis' | 'record'): void {
-  for (const k of ['start', 'brief', 'crisis', 'record'] as const) $(k).hidden = k !== id;
-  // The crisis keeps its board on screen behind the record card.
-  if (id === 'record') $('crisis').hidden = false;
-}
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 let last = performance.now();
 function frame(now: number): void {
@@ -357,60 +356,32 @@ function frame(now: number): void {
     const st = s.match.state;
     globe.setTraces(st.traces, (t) => {
       const span = t.impactAt - t.launchedAt;
-      if (span <= 0) return 1;
-      // Slide between ticks so a track crawls rather than jumping.
-      const within = s!.paused || s!.timer === null ? 0 : 0;
-      return Math.max(0, Math.min(1, (st.tick + within - t.launchedAt) / span));
+      return span <= 0 ? 1 : Math.max(0, Math.min(1, (st.tick - t.launchedAt) / span));
     });
-    globe.updateCities(st.cities);
     globe.render(dt);
   }
   requestAnimationFrame(frame);
 }
 
-$('btn-go').addEventListener('click', () => void begin());
-$('act-lower').addEventListener('click', () =>
-  order({ kind: 'SET_DEFCON', level: (s!.match.state.powers[s!.you]!.defcon - 1) as Defcon }),
-);
-$('act-raise').addEventListener('click', () =>
-  order({ kind: 'SET_DEFCON', level: (s!.match.state.powers[s!.you]!.defcon + 1) as Defcon }),
-);
-$('act-launch').addEventListener('click', () =>
-  order({
-    kind: 'LAUNCH',
-    unit: $<HTMLSelectElement>('act-unit').value,
-    targetPower: $<HTMLSelectElement>('act-target').value,
-    targetKind: $<HTMLSelectElement>('act-kind').value as 'FORCES' | 'CITIES',
-  }),
-);
-$('act-doctrine').addEventListener('click', () =>
-  order({
-    kind: 'SET_DOCTRINE',
-    doctrine:
-      s!.match.state.powers[s!.you]!.doctrine === 'RIDE_OUT' ? 'LAUNCH_ON_WARNING' : 'RIDE_OUT',
-  }),
-);
-$('act-pause').addEventListener('click', () => (s?.timer === null ? resume() : halt()));
-$('coach-ok').addEventListener('click', () => {
-  $('coach').hidden = true;
-  if (s && s.timer === null && !s.match.state.over) resume();
-});
-$('rec-again').addEventListener('click', () => void begin());
-$('rec-other').addEventListener('click', () => {
-  halt();
-  show('start');
-});
-$('rec-download').addEventListener('click', () => {
-  if (!s) return;
-  const blob = new Blob([s.match.events.map((e) => JSON.stringify(e)).join('\n')], {
-    type: 'application/x-ndjson',
+$('s1').addEventListener('click', () => queue({ kind: 'OPEN_FOOTBALL' }));
+$('s2').addEventListener('click', () => queue({ kind: 'AUTHENTICATE' }));
+$('s3').addEventListener('click', () => select());
+$('s4').addEventListener('click', () => queue({ kind: 'TURN_KEYS' }));
+$('sdown').addEventListener('click', () => queue({ kind: 'STAND_DOWN' }));
+for (const b of $('tray').querySelectorAll<HTMLButtonElement>('[data-opt]')) {
+  b.addEventListener('click', () => {
+    if (!s) return;
+    s.option = b.dataset['opt'] as StrikeOption;
+    select();
   });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `brink-${s.match.state.scenarioId}-${s.match.state.seed}.jsonl`;
-  a.click();
-  URL.revokeObjectURL(a.href);
+}
+$('rec-again').addEventListener('click', () => void begin());
+$('rec-menu').addEventListener('click', () => {
+  if (s?.timer !== null && s?.timer !== undefined) clearInterval(s.timer);
+  s = null;
+  $('record').hidden = true;
+  $('terminal').hidden = true;
+  $('menu').hidden = false;
 });
 
-initTooltips();
-renderStart();
+renderMenu();

@@ -1,9 +1,7 @@
-import { AGENTS, type DoctrineName } from './doctrine.js';
 import { step } from './engine.js';
-import type { BrinkEvent } from './events.js';
-import { SCHEMA_VERSION } from './events.js';
+import { SCHEMA_VERSION, type BrinkEvent } from './events.js';
+import { opponentOrder } from './opponent.js';
 import { createGame, type ScenarioDef } from './scenario.js';
-import { outcomeOf, type Outcome } from './scoring.js';
 import type { GameState, Order, PowerId } from './types.js';
 
 export interface Match {
@@ -11,53 +9,42 @@ export interface Match {
   events: BrinkEvent[];
 }
 
-export function startMatch(scenario: ScenarioDef, seed: string): Match {
-  const state = createGame(scenario, seed);
+export function startMatch(scen: ScenarioDef, you: PowerId, seed: string): Match {
+  let state = createGame(scen, you, seed);
   const events: BrinkEvent[] = [
     {
       t: 0,
       type: 'match_start',
       payload: {
-        scenarioId: scenario.id,
+        scenarioId: scen.id,
         seed,
         schemaVersion: SCHEMA_VERSION,
+        you,
         powers: Object.keys(state.powers),
       },
     },
   ];
-  // Scenario openings: traces already in the air before anyone decides anything.
-  if (scenario.opening?.length) {
-    const opening: Record<PowerId, Order[]> = {};
-    for (const o of scenario.opening) {
-      opening[o.from] = [{ kind: 'LAUNCH', unit: o.unit, targetPower: o.to, targetKind: 'CITIES' }];
+
+  // The opening strike is a premise, not a decision, so it is injected through the
+  // same chain rather than special-cased: the aggressor simply starts it completed.
+  if (scen.inbound) {
+    const from = state.powers[scen.inbound.from];
+    if (from) {
+      from.release = { stage: 'SELECTED', option: 'MAJOR', target: scen.inbound.to };
+      const r = step(state, { [scen.inbound.from]: { kind: 'TURN_KEYS' } });
+      state = r.state;
+      events.push(...r.events);
     }
-    // No readiness override needed: a scenario that opens with a strike starts the
-    // launching power at a readiness that releases it.
-    const r = step(state, opening);
-    return { state: r.state, events: [...events, ...r.events] };
   }
   return { state, events };
 }
 
-export function advance(m: Match, orders: Record<PowerId, Order[]>): Match {
+/** One minute. The player's order, then everyone else's. */
+export function advance(m: Match, yours: Order): Match {
+  const orders: Record<PowerId, Order> = { [m.state.you]: yours };
+  for (const pid of Object.keys(m.state.powers)) {
+    if (pid !== m.state.you) orders[pid] = opponentOrder(m.state, pid);
+  }
   const r = step(m.state, orders);
   return { state: r.state, events: [...m.events, ...r.events] };
-}
-
-/** Runs a whole match between scripted opponents. Used by tests and the balance harness. */
-export function playScripted(
-  scenario: ScenarioDef,
-  seed: string,
-  assignment: Record<PowerId, DoctrineName>,
-): { match: Match; result: Outcome } {
-  let m = startMatch(scenario, seed);
-  while (!m.state.over) {
-    const orders: Record<PowerId, Order[]> = {};
-    for (const pid of Object.keys(m.state.powers).sort()) {
-      const name = assignment[pid] ?? 'PASSIVE';
-      orders[pid] = AGENTS[name].decide(m.state, pid);
-    }
-    m = advance(m, orders);
-  }
-  return { match: m, result: outcomeOf(m.state, m.events) };
 }

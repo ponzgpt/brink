@@ -1,35 +1,39 @@
 /**
- * The event log is the single source of truth. The browser renderer, the replay
- * viewer and the scorer all fold the same stream — there is no second
- * representation to drift out of sync.
+ * One append-only stream. The plot, the logs and the record are all folds of it.
  *
- * CONTRACT: adding a field is fine; renaming or removing one breaks stored
- * replays. Bump SCHEMA_VERSION and say so in the commit.
+ * CONTRACT: renaming or removing a field invalidates stored logs. Bump
+ * SCHEMA_VERSION and say so in the commit.
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
-import type { Confidence, Defcon, Doctrine, PowerId, TargetKind } from './types.js';
 import type { LatLon } from './geo.js';
+import type { Confidence, PowerId, ReleaseStage, StrikeOption } from './types.js';
 
 export type BrinkEvent =
   | {
       t: number;
       type: 'match_start';
-      payload: { scenarioId: string; seed: string; schemaVersion: number; powers: PowerId[] };
+      payload: {
+        scenarioId: string;
+        seed: string;
+        schemaVersion: number;
+        you: PowerId;
+        powers: PowerId[];
+      };
     }
-  | { t: number; type: 'tick_begin'; payload: Record<string, never> }
+  | { t: number; type: 'tick'; payload: Record<string, never> }
+  | { t: number; type: 'invalid_order'; payload: { power: PowerId; reason: string } }
   | {
       t: number;
-      type: 'invalid_order';
-      payload: { power: PowerId; reason: string; order: unknown };
+      type: 'release_stage';
+      payload: {
+        power: PowerId;
+        from: ReleaseStage;
+        to: ReleaseStage;
+        option: StrikeOption | null;
+        target: PowerId | null;
+      };
     }
-  | { t: number; type: 'defcon_change'; payload: { power: PowerId; from: Defcon; to: Defcon } }
-  | {
-      t: number;
-      type: 'doctrine_change';
-      payload: { power: PowerId; from: Doctrine; to: Doctrine };
-    }
-  | { t: number; type: 'sub_spinup'; payload: { power: PowerId; unit: string; readyAt: number } }
   | {
       t: number;
       type: 'launch';
@@ -39,48 +43,40 @@ export type BrinkEvent =
         unit: string;
         origin: LatLon;
         targetPower: PowerId;
-        targetKind: TargetKind;
+        targetKind: 'CITIES' | 'FORCES';
         targetId: string;
         targetAt: LatLon;
         warheads: number;
         kind: 'ICBM' | 'SLBM';
         impactAt: number;
-        automatic: boolean;
       };
     }
   | {
       t: number;
-      type: 'detection_report';
+      type: 'warning';
       payload: {
         reportId: string;
         seenBy: PowerId;
         destGuess: PowerId;
         originGuess: PowerId | null;
         confidence: Confidence;
-        kind: 'ICBM' | 'SLBM';
         etaTicks: number;
         real: boolean;
       };
     }
-  | { t: number; type: 'trace_update'; payload: { traceId: string; at: LatLon; progress: number } }
   | {
       t: number;
       type: 'impact';
       payload: {
         traceId: string;
         targetPower: PowerId;
-        targetKind: TargetKind;
+        targetKind: 'CITIES' | 'FORCES';
         targetId: string;
         warheads: number;
         popKilled: number;
         unitDestroyed: string | null;
       };
     }
-  | { t: number; type: 'tick_end'; payload: { traces: number } }
-  | {
-      t: number;
-      type: 'match_end';
-      payload: { reason: 'tick_limit' | 'arsenals_empty'; survivors: Record<PowerId, number> };
-    };
+  | { t: number; type: 'match_end'; payload: { reason: 'window_closed' | 'spent' } };
 
 export type EventType = BrinkEvent['type'];

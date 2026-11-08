@@ -1,358 +1,235 @@
 import { describe, expect, it } from 'vitest';
 import {
-  AGENTS,
-  SCENARIOS,
+  BOLT,
   advance,
-  createGame,
+  assess,
   distanceKm,
   flightTicks,
   globalPop,
-  observe,
-  playScripted,
-  byPopulation,
-  renderObservation,
+  legalOrders,
   outcomeOf,
+  parseOrder,
+  renderBrief,
   startMatch,
-  type DoctrineName,
   type Match,
   type Order,
-  type PowerId,
 } from '../src/engine/index.js';
 
-const SCEN = SCENARIOS['standoff']!;
-
-/** Walk the readiness ladder down a level at a time, which is the only legal way. */
-function lowerTo(m: Match, power: PowerId, level: number): Match {
-  let guard = 0;
-  while (m.state.powers[power]!.defcon > level && guard++ < 6) {
-    m = advance(m, {
-      [power]: [
-        { kind: 'SET_DEFCON', level: (m.state.powers[power]!.defcon - 1) as 1 | 2 | 3 | 4 },
-      ],
-    });
+const run = (orders: Order[], seed = 'test'): Match => {
+  let m = startMatch(BOLT, 'USA', seed);
+  for (const o of orders) {
+    if (m.state.over) break;
+    m = advance(m, o);
   }
+  while (!m.state.over) m = advance(m, { kind: 'HOLD' });
   return m;
-}
+};
 
-/** Reports carry their own id; the trace they describe is recovered from state. */
-function traceOf(m: Match, reportId: string): string | null {
-  return m.state.reports.find((r) => r.id === reportId)?.traceId ?? null;
-}
+const CHAIN: Order[] = [
+  { kind: 'OPEN_FOOTBALL' },
+  { kind: 'AUTHENTICATE' },
+  { kind: 'SELECT_OPTION', option: 'MAJOR', target: 'PRK' },
+  { kind: 'TURN_KEYS' },
+];
 
 describe('geometry', () => {
-  it('puts Moscow→Washington near the ~26 minute figure the literature cites', () => {
-    const moscow = { lat: 55.76, lon: 37.62 };
-    const washington = { lat: 38.91, lon: -77.04 };
-    const km = distanceKm(moscow, washington);
+  it('puts Moscow to Washington near the figure the literature cites', () => {
+    const km = distanceKm({ lat: 55.76, lon: 37.62 }, { lat: 38.91, lon: -77.04 });
     expect(km).toBeGreaterThan(7000);
     expect(km).toBeLessThan(8200);
-    const ticks = flightTicks(moscow, washington, 'ICBM');
-    expect(ticks).toBeGreaterThanOrEqual(20);
-    expect(ticks).toBeLessThanOrEqual(26);
-  });
-
-  it('never returns a flight shorter than two ticks', () => {
-    const a = { lat: 31.55, lon: 74.34 };
-    const b = { lat: 31.78, lon: 74.4 };
-    expect(flightTicks(a, b, 'ICBM')).toBe(2);
+    expect(
+      flightTicks({ lat: 55.76, lon: 37.62 }, { lat: 38.91, lon: -77.04 }, 'ICBM'),
+    ).toBeLessThanOrEqual(26);
   });
 });
 
 describe('determinism', () => {
-  it('is bit-identical across 200 replays of the same seed and orders', () => {
-    const assignment: Record<PowerId, DoctrineName> = {
-      USA: 'SECOND_STRIKE',
-      RUS: 'FIRST_STRIKE',
-      CHN: 'PARANOID',
-      FRA: 'PASSIVE',
-      GBR: 'PASSIVE',
-      IND: 'RANDOM',
-      PAK: 'TRIGGER_HAPPY',
-      ISR: 'PASSIVE',
-      PRK: 'RANDOM',
-    };
-    const first = JSON.stringify(playScripted(SCEN, 'seed-42', assignment).result);
+  it('is bit-identical across 200 runs of the same seed and orders', () => {
+    const first = JSON.stringify(outcomeOf(run(CHAIN).state, run(CHAIN).events));
     for (let i = 0; i < 200; i++) {
-      expect(JSON.stringify(playScripted(SCEN, 'seed-42', assignment).result)).toBe(first);
+      const m = run(CHAIN);
+      expect(JSON.stringify(outcomeOf(m.state, m.events))).toBe(first);
     }
   });
 
-  it('produces different traces for different seeds', () => {
-    const a: Record<PowerId, DoctrineName> = { USA: 'RANDOM', RUS: 'RANDOM', CHN: 'RANDOM' };
-    const r1 = playScripted(SCENARIOS['bolt']!, 's1', a).result;
-    const r2 = playScripted(SCENARIOS['bolt']!, 's2', a).result;
-    expect(JSON.stringify(r1)).not.toBe(JSON.stringify(r2));
+  it('diverges on a different seed', () => {
+    // The summary can match across seeds when both runs end in holding; the event
+    // stream is where the warning picture actually differs.
+    const a = JSON.stringify(run([], 's1').events);
+    const b = JSON.stringify(run([], 's2').events);
+    expect(a).not.toBe(b);
   });
 
-  it('step() does not mutate the state it was given', () => {
-    const m = startMatch(SCEN, 'immutable');
+  it('does not mutate the state it was given', () => {
+    const m = startMatch(BOLT, 'USA', 'immutable');
     const before = JSON.stringify(m.state);
-    advance(m, { USA: [{ kind: 'SET_DEFCON', level: 3 }] });
+    advance(m, { kind: 'OPEN_FOOTBALL' });
     expect(JSON.stringify(m.state)).toBe(before);
   });
 });
 
-describe('readiness gate', () => {
-  it('refuses a launch above DEFCON 2 and logs it as an invalid order', () => {
-    const m = startMatch(SCEN, 'gate');
-    const next = advance(m, {
-      USA: [{ kind: 'LAUNCH', unit: 'us-silo-1', targetPower: 'RUS', targetKind: 'CITIES' }],
-    });
-    const invalid = next.events.filter((e) => e.type === 'invalid_order');
-    expect(invalid.length).toBe(1);
-    expect(next.state.traces.length).toBe(0);
+describe('authorisation chain', () => {
+  it('cannot be skipped', () => {
+    let m = startMatch(BOLT, 'USA', 'skip');
+    m = advance(m, { kind: 'TURN_KEYS' });
+    expect(m.events.some((e) => e.type === 'invalid_order' && e.payload.power === 'USA')).toBe(
+      true,
+    );
+    expect(m.state.powers['USA']!.release.stage).toBe('STOWED');
   });
 
-  it('refuses to jump more than one readiness level per tick', () => {
-    const m = startMatch(SCEN, 'ladder');
-    const next = advance(m, { USA: [{ kind: 'SET_DEFCON', level: 1 }] });
-    expect(next.events.some((e) => e.type === 'invalid_order')).toBe(true);
-    expect(next.state.powers['USA']!.defcon).toBe(4);
+  it('costs four minutes from stowed to weapons away', () => {
+    let m = startMatch(BOLT, 'USA', 'cost');
+    const t0 = m.state.tick;
+    for (const o of CHAIN) m = advance(m, o);
+    expect(m.state.powers['USA']!.release.stage).toBe('RELEASED');
+    expect(m.state.tick - t0).toBe(4);
   });
 
-  it('releases CITIES only at DEFCON 1', () => {
-    let m = startMatch(SCEN, 'release');
-    for (const level of [3, 2, 1] as const) {
-      m = advance(m, { USA: [{ kind: 'SET_DEFCON', level }] });
-    }
-    expect(m.state.powers['USA']!.defcon).toBe(1);
-    const fired = advance(m, {
-      USA: [{ kind: 'LAUNCH', unit: 'us-silo-1', targetPower: 'RUS', targetKind: 'CITIES' }],
-    });
-    expect(fired.state.traces.length).toBe(1);
-    expect(fired.events.some((e) => e.type === 'launch')).toBe(true);
+  it('only offers the next legal step', () => {
+    let m = startMatch(BOLT, 'USA', 'legal');
+    expect(legalOrders(m.state, 'USA')).toEqual(['HOLD', 'OPEN_FOOTBALL']);
+    m = advance(m, { kind: 'OPEN_FOOTBALL' });
+    expect(legalOrders(m.state, 'USA')).toContain('AUTHENTICATE');
+    expect(legalOrders(m.state, 'USA')).not.toContain('TURN_KEYS');
   });
 
-  it('rejects targeting yourself and unknown units', () => {
-    let m = startMatch(SCEN, 'bad-orders');
-    for (const level of [3, 2, 1] as const)
-      m = advance(m, { USA: [{ kind: 'SET_DEFCON', level }] });
-    const next = advance(m, {
-      USA: [
-        { kind: 'LAUNCH', unit: 'us-silo-1', targetPower: 'USA', targetKind: 'CITIES' },
-        { kind: 'LAUNCH', unit: 'nope', targetPower: 'RUS', targetKind: 'CITIES' },
-      ],
-    });
-    expect(next.events.filter((e) => e.type === 'invalid_order').length).toBe(2);
-  });
-});
+  it('can be stood down before the keys, and not after', () => {
+    let m = startMatch(BOLT, 'USA', 'standdown');
+    m = advance(m, { kind: 'OPEN_FOOTBALL' });
+    m = advance(m, { kind: 'STAND_DOWN' });
+    expect(m.state.powers['USA']!.release.stage).toBe('STOWED');
 
-describe('launch, flight and impact', () => {
-  it('kills population and spills onto the next city when overkilled', () => {
-    let m = startMatch(SCENARIOS['dead-hand']!, 'impact');
-    const popBefore = globalPop(m.state);
-    m = lowerTo(m, 'IND', 1);
-    m = advance(m, {
-      IND: [{ kind: 'LAUNCH', unit: 'in-silo-1', targetPower: 'PAK', targetKind: 'CITIES' }],
-    });
-    const launch = m.events.find((e) => e.type === 'launch' && e.payload.from === 'IND');
-    expect(launch).toBeDefined();
-    while (!m.state.over && m.state.traces.length > 0) m = advance(m, {});
-    const impacts = m.events.filter((e) => e.type === 'impact');
-    expect(impacts.length).toBeGreaterThan(0);
-    expect(globalPop(m.state)).toBeLessThan(popBefore);
-  });
-
-  it('sea-based launch spins up before it flies', () => {
-    let m = startMatch(SCENARIOS['dead-hand']!, 'sub');
-    m = lowerTo(m, 'IND', 1);
-    m = advance(m, {
-      IND: [{ kind: 'LAUNCH', unit: 'in-sub-1', targetPower: 'PAK', targetKind: 'CITIES' }],
-    });
-    expect(m.events.some((e) => e.type === 'sub_spinup' && e.payload.power === 'IND')).toBe(true);
-    // Other powers may have tracks of their own in the air; only ours must be absent.
-    const mine = (x: Match) => x.state.traces.filter((t) => t.originUnit === 'in-sub-1').length;
-    expect(mine(m)).toBe(0);
-    m = advance(m, {});
-    expect(mine(m)).toBe(1);
-  });
-
-  it('draws a salvo down from the unit and refuses once it is empty', () => {
-    let m = startMatch(SCENARIOS['dead-hand']!, 'salvo');
-    const salvo = m.state.config.salvoWarheads;
-    const start = m.state.powers['IND']!.silos[0]!.warheads;
-    m = lowerTo(m, 'IND', 1);
-
-    const fire = (x: Match) =>
-      advance(x, {
-        IND: [{ kind: 'LAUNCH', unit: 'in-silo-1', targetPower: 'PAK', targetKind: 'CITIES' }],
-      });
-
-    m = fire(m);
-    expect(m.state.powers['IND']!.silos[0]!.warheads).toBe(start - salvo);
-
-    // A unit keeps firing until it runs dry: one shot per unit left arsenals unused.
-    let guard = 0;
-    while (m.state.powers['IND']!.silos[0]!.warheads > 0 && guard++ < 20) m = fire(m);
-    expect(m.state.powers['IND']!.silos[0]!.warheads).toBe(0);
-
-    const again = fire(m);
+    let n = startMatch(BOLT, 'USA', 'standdown2');
+    for (const o of CHAIN) n = advance(n, o);
+    n = advance(n, { kind: 'STAND_DOWN' });
+    expect(n.state.powers['USA']!.release.stage).toBe('RELEASED');
     expect(
-      again.events.some((e) => e.type === 'invalid_order' && e.payload.reason.includes('empty')),
+      n.events.some((e) => e.type === 'invalid_order' && e.payload.reason.includes('away')),
     ).toBe(true);
   });
 
-  it('lets a revealed boat be hunted, but not a silent one', () => {
-    let m = startMatch(SCENARIOS['dead-hand']!, 'hunt');
-    const sub = () => m.state.powers['IND']!.subs[0]!;
-    expect(sub().revealed).toBe(false);
-
-    m = lowerTo(m, 'IND', 1);
-    m = advance(m, {
-      IND: [{ kind: 'LAUNCH', unit: 'in-sub-1', targetPower: 'PAK', targetKind: 'CITIES' }],
-    });
-    m = advance(m, {}); // spin-up completes, the boat fires and gives itself away
-    expect(sub().revealed).toBe(true);
-    expect(sub().alive).toBe(true);
+  it('puts weapons in the air when the keys turn, and they cannot be recalled', () => {
+    let m = startMatch(BOLT, 'USA', 'away');
+    for (const o of CHAIN) m = advance(m, o);
+    const away = m.events.filter((e) => e.type === 'launch' && e.payload.from === 'USA');
+    expect(away.length).toBeGreaterThan(0);
+    m = advance(m, { kind: 'STAND_DOWN' });
+    expect(m.state.traces.filter((t) => t.from === 'USA').length).toBeGreaterThan(0);
   });
 });
 
 describe('early warning', () => {
-  it('never tells the observer whether a report is real', () => {
-    const m = playScripted(SCENARIOS['dead-hand']!, 'warning', {
-      IND: 'FIRST_STRIKE',
-      PAK: 'PARANOID',
-      CHN: 'PASSIVE',
-      RUS: 'PASSIVE',
-      USA: 'PASSIVE',
-    }).match;
-    const o = observe(m.state, 'PAK');
-    const text = renderObservation(o);
-    expect(text).not.toMatch(/\breal\b/i);
-    expect(text).not.toMatch(/\bfalse\b/i);
-    for (const r of o.newReports) expect(Object.keys(r)).not.toContain('real');
+  it('never discloses whether a report was real', () => {
+    const m = run([]);
+    const brief = renderBrief(m.state, 'USA');
+    expect(brief).not.toMatch(/\breal\b/i);
+    expect(brief).not.toMatch(/\bfalse\b/i);
+    expect(brief).not.toMatch(/\btrue\b/i);
   });
 
-  it('generates false positives that an agent cannot distinguish', () => {
-    let m = startMatch(
-      {
-        ...SCENARIOS['dead-hand']!,
-        config: { ...SCENARIOS['dead-hand']!.config, pFalsePositive: 1 },
-      },
-      'fp',
-    );
-    m = advance(m, {});
-    const reports = m.events.filter((e) => e.type === 'detection_report');
-    expect(reports.length).toBeGreaterThan(0);
-    expect(reports.every((e) => e.type === 'detection_report' && e.payload.real === false)).toBe(
-      true,
-    );
-  });
-
-  it('gets attribution wrong often enough to matter, and right often enough to trust', () => {
+  it('gets attribution wrong often enough to matter and right often enough to use', () => {
     let total = 0;
     let wrong = 0;
     for (let i = 0; i < 40; i++) {
-      const m = playScripted(SCENARIOS['dead-hand']!, `attr-${i}`, {
-        IND: 'FIRST_STRIKE',
-        PAK: 'SECOND_STRIKE',
-        CHN: 'PASSIVE',
-        RUS: 'PASSIVE',
-        USA: 'PASSIVE',
-      }).match;
+      const m = run([], `attr-${i}`);
       for (const e of m.events) {
-        if (e.type !== 'detection_report' || !e.payload.real) continue;
+        if (e.type !== 'warning' || e.payload.seenBy !== 'USA') continue;
         total++;
-        const traceId = m.state.reports.find((r) => r.id === e.payload.reportId)?.traceId ?? null;
-        const launch = m.events.find((x) => x.type === 'launch' && x.payload.traceId === traceId);
-        const misdirected =
-          launch?.type === 'launch' && launch.payload.targetPower !== e.payload.destGuess;
-        if (e.payload.originGuess === null || misdirected) wrong++;
+        if (!e.payload.real || e.payload.originGuess === null) wrong++;
       }
     }
-    expect(total).toBeGreaterThan(50);
-    // Neither decorative (never wrong) nor dominant (never usable).
+    expect(total).toBeGreaterThan(40);
     const rate = wrong / total;
     expect(rate).toBeGreaterThan(0.05);
     expect(rate).toBeLessThan(0.8);
   });
-});
 
-describe('standing doctrine', () => {
-  it('fires without consulting the agent, including on a false report', () => {
-    const scen = {
-      ...SCENARIOS['dead-hand']!,
-      config: { ...SCENARIOS['dead-hand']!.config, pFalsePositive: 1 },
-      start: {
-        ...SCENARIOS['dead-hand']!.start,
-        PAK: { defcon: 1 as const, doctrine: 'LAUNCH_ON_WARNING' as const },
-      },
-    };
-    let m = startMatch(scen, 'deadhand');
-    m = advance(m, {}); // nobody ordered anything
-    const auto = m.events.filter((e) => e.type === 'launch' && e.payload.automatic);
-    expect(auto.length).toBeGreaterThan(0);
-    expect(m.state.powers['PAK']!.autoLaunches).toBeGreaterThan(0);
-  });
-});
-
-describe('outcome record', () => {
-  it('records every power and orders the table by survival without calling it a ranking', () => {
-    const { match, result } = playScripted(SCEN, 'score', {
-      USA: 'PASSIVE',
-      RUS: 'FIRST_STRIKE',
-      CHN: 'PASSIVE',
-      FRA: 'PASSIVE',
-      GBR: 'PASSIVE',
-      IND: 'PASSIVE',
-      PAK: 'PASSIVE',
-      ISR: 'PASSIVE',
-      PRK: 'PASSIVE',
-    });
-    expect(result.records.length).toBe(9);
-    const ordered = byPopulation(result);
-    for (let i = 1; i < ordered.length; i++) {
-      expect(ordered[i - 1]!.populationPct).toBeGreaterThanOrEqual(ordered[i]!.populationPct);
-    }
-    expect(outcomeOf(match.state, match.events).endReason).not.toBe('incomplete');
-  });
-
-  it('flags a launch that followed a false positive', () => {
-    const scen = {
-      ...SCENARIOS['dead-hand']!,
-      config: { ...SCENARIOS['dead-hand']!.config, pFalsePositive: 1 },
-      start: {
-        ...SCENARIOS['dead-hand']!.start,
-        PAK: { defcon: 1 as const, doctrine: 'RIDE_OUT' as const },
-      },
-    };
-    const { result } = playScripted(scen, 'flag', {
-      IND: 'PASSIVE',
-      PAK: 'PARANOID',
-      CHN: 'PASSIVE',
-      RUS: 'PASSIVE',
-      USA: 'PASSIVE',
-    });
-    expect(result.records.find((s) => s.power === 'PAK')!.firedOnFalseWarning).toBe(true);
-  });
-});
-
-describe('every match terminates', () => {
-  it('ends within the tick limit for all scenarios and all doctrines', () => {
-    const names = Object.keys(AGENTS) as DoctrineName[];
-    for (const id of Object.keys(SCENARIOS)) {
-      const scen = SCENARIOS[id]!;
-      for (const name of names) {
-        const assignment: Record<PowerId, DoctrineName> = {};
-        for (const p of scen.powers) assignment[p] = name;
-        const { result } = playScripted(scen, `term-${id}-${name}`, assignment);
-        expect(result.endReason).not.toBe('incomplete');
-        expect(result.ticks).toBeLessThanOrEqual(scen.config.maxTicks! + 2);
-      }
-    }
-  });
-});
-
-describe('observation is sufficient to play', () => {
-  it('offers at least one legal order at every tick of a match', () => {
-    let m = startMatch(SCEN, 'legal');
+  it('recommends release once impact is close, whatever the truth of it', () => {
+    let m = startMatch(BOLT, 'USA', 'urge');
+    let urged = false;
     while (!m.state.over) {
-      for (const pid of Object.keys(m.state.powers)) {
-        expect(observe(m.state, pid).legalOrders.length).toBeGreaterThan(0);
+      if (assess(m.state, 'USA').urgesRelease) urged = true;
+      m = advance(m, { kind: 'HOLD' });
+    }
+    expect(urged).toBe(true);
+  });
+});
+
+describe('the window always closes', () => {
+  it('stops accepting orders at the declared minute and always terminates', () => {
+    for (const orders of [[], CHAIN, [{ kind: 'OPEN_FOOTBALL' } as Order]]) {
+      for (const seed of ['a', 'b', 'c']) {
+        const m = run(orders, seed);
+        expect(m.state.over).toBe(true);
+        expect(m.state.traces.length).toBe(0);
+        // Resolution may run past the window, but never unboundedly: the longest
+        // flight on this board is well under the window again.
+        expect(m.state.tick).toBeLessThanOrEqual((BOLT.config.maxTicks ?? 26) * 2 + 4);
       }
-      const orders: Record<PowerId, Order[]> = {};
-      for (const pid of Object.keys(m.state.powers)) orders[pid] = [{ kind: 'HOLD' }];
-      m = advance(m, orders);
+    }
+  });
+
+  it('issues no orders once the window has closed', () => {
+    const m = run([]);
+    const late = m.events.filter(
+      (e) => e.t > (BOLT.config.maxTicks ?? 26) && e.type === 'release_stage',
+    );
+    expect(late).toEqual([]);
+  });
+});
+
+describe('the record', () => {
+  it('reports holding as holding, and never names a winner', () => {
+    const m = run([]);
+    const o = outcomeOf(m.state, m.events);
+    expect(['HELD', 'STRUCK_AND_HELD']).toContain(o.verdict);
+    expect(o.youReleased).toBe(false);
+    expect(JSON.stringify(o)).not.toMatch(/winner|victor|score/i);
+  });
+
+  it('counts the dead and notes when a release followed a warning of nothing', () => {
+    const m = run(CHAIN);
+    const o = outcomeOf(m.state, m.events);
+    expect(o.youReleased).toBe(true);
+    expect(o.minutesToDecide).toBe(4);
+    expect(typeof o.youFiredOnFalseWarning).toBe('boolean');
+    expect(o.deadM).toBeGreaterThan(0);
+  });
+
+  it('makes releasing cost more lives than holding', () => {
+    const held = outcomeOf(run([]).state, run([]).events);
+    const fired = outcomeOf(run(CHAIN).state, run(CHAIN).events);
+    expect(fired.deadM).toBeGreaterThan(held.deadM);
+    expect(globalPop(run(CHAIN).state)).toBeLessThan(globalPop(run([]).state));
+  });
+});
+
+describe('order parsing', () => {
+  it('round-trips the chain and falls back to HOLD on nonsense', () => {
+    expect(parseOrder('OPEN_FOOTBALL')).toEqual({ kind: 'OPEN_FOOTBALL' });
+    expect(parseOrder('select_option major RUS')).toEqual({
+      kind: 'SELECT_OPTION',
+      option: 'MAJOR',
+      target: 'RUS',
+    });
+    expect(parseOrder('do a barrel roll')).toEqual({ kind: 'HOLD' });
+  });
+});
+
+describe('the decision window is not the end of the world', () => {
+  it('keeps resolving until weapons in the air have landed', () => {
+    const m = run(CHAIN);
+    expect(m.state.traces.length).toBe(0);
+    // A release ordered inside the window must still produce a detonation.
+    expect(m.events.some((e) => e.type === 'impact')).toBe(true);
+    expect(m.state.tick).toBeGreaterThan(BOLT.config.maxTicks ?? 26);
+  });
+
+  it('ends with a clear board however the match went', () => {
+    for (const seed of ['x', 'y', 'z']) {
+      expect(run([], seed).state.traces.length).toBe(0);
+      expect(run(CHAIN, seed).state.traces.length).toBe(0);
     }
   });
 });

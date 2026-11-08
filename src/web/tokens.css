@@ -1,141 +1,104 @@
-/* BRINK visual language.
+/* BRINK.
  *
- * Register: a Cold War command console seen from the American side — SAC and
- * NORAD hardware, not Soviet constructivism. Olive-charcoal housing, bone
- * lettering, amber phosphor behind glass, caution yellow and warning red used
- * only where something is actually being warned about.
+ * One register: you are looking at a period command terminal. The housing is
+ * beige-grey machine plastic, the glass is near-black, and everything drawn on
+ * the glass is a single phosphor colour — which is why powers are told apart by
+ * shape and not by hue.
  *
- * Two clichés deliberately avoided: green-on-black terminal (burnt out by
- * cinema) and black-on-white report (reads as a spreadsheet, not a machine).
- * Amber on olive is the choice, and it is a choice: command CRTs of the period
- * used amber phosphor as readily as green.
+ * The phosphor changes with the side you command, because a Soviet console and
+ * an American one did not glow the same colour and it is a free way to make the
+ * three sides feel like different rooms.
  */
 :root {
-  /* housing */
-  --hull: #151813;
-  --panel: #1e221b;
-  --panel-2: #262b22;
-  --bezel-hi: #3c4236;
-  --bezel-lo: #0c0e0a;
-  --rule: #343a2e;
+  --case: #b9b3a1;
+  --case-hi: #d2ccb9;
+  --case-lo: #8a8575;
+  --case-ink: #2a2821;
 
-  /* lettering */
-  --bone: #d6d2c4;
-  --bone-dim: #938e7d;
+  --glass: #060806;
+  --glass-edge: #151a14;
 
-  /* signal */
-  --phosphor: #e8a33d;
-  --phosphor-2: #8c6a2b;
-  --caution: #d9a72a;
-  --alarm: #c8402e;
-  --alarm-text: #e8705c;
-  --blueprint: #6aa3b0;
-  /* Tracks in flight: the only cool colour on a warm board, which is what makes
-     the plot read as incoming data rather than as decoration. */
-  --track: #6fd3e8;
-
-  /* screen interior */
-  --board: #0b110e;
-
-  /* readiness ramp: calm grey-green through caution to warning */
-  --defcon-5: #5c6352;
-  --defcon-4: #7d7a52;
-  --defcon-3: #d9a72a;
-  --defcon-2: #e8a33d;
-  --defcon-1: #c8402e;
+  --p: #e8a33d;
+  --p-dim: #8a6124;
+  --p-ghost: #3d2d13;
+  --alarm: #ff6b4a;
 
   --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
 }
 
+body[data-side='RUS'] {
+  --p: #5ddc7a;
+  --p-dim: #2f8545;
+  --p-ghost: #11341c;
+}
+
+body[data-side='PRK'] {
+  --p: #63b8f5;
+  --p-dim: #2c6e9c;
+  --p-ghost: #11293a;
+}
+
 * {
   box-sizing: border-box;
 }
-
-/* `hidden` must beat the layout rules that set display on these sections. */
 [hidden] {
   display: none !important;
 }
-
 html,
 body {
   margin: 0;
-  padding: 0;
-}
-
-body {
-  background: var(--hull);
-  color: var(--bone);
-  font-family: var(--serif);
-  font-size: 16px;
-  line-height: 1.55;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* A rule is a seam between panels, not decoration. */
-.rule {
-  border: 0;
-  border-top: 1px solid var(--bezel-lo);
-  border-bottom: 1px solid var(--bezel-hi);
-  margin: 0;
-}
-
-/* Controls are panel-mounted switches: square, embossed, legible when off. */
-button,
-select,
-input[type='file'] {
+  height: 100%;
+  background: #0b0c0a;
+  color: var(--p);
   font-family: var(--mono);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button {
+  font-family: var(--mono);
+  color: var(--case-ink);
+  background: linear-gradient(var(--case-hi), var(--case));
+  border: 1px solid var(--case-lo);
+  border-top-color: #e6e0cd;
+  border-radius: 2px;
+  padding: 9px 13px;
   font-size: 12px;
-  letter-spacing: 0.04em;
-  color: var(--bone);
-  background: linear-gradient(var(--panel-2), var(--panel));
-  border: 1px solid var(--bezel-lo);
-  border-top-color: var(--bezel-hi);
-  border-radius: 1px;
-  padding: 7px 11px;
+  letter-spacing: 0.06em;
   cursor: pointer;
 }
-
-button:hover:not(:disabled),
-select:hover {
-  background: linear-gradient(var(--bezel-hi), var(--panel-2));
+button:hover:not(:disabled) {
+  background: linear-gradient(#e2dcc8, var(--case-hi));
 }
-
 button:active:not(:disabled) {
-  background: var(--bezel-lo);
-  border-top-color: var(--bezel-lo);
+  background: var(--case-lo);
+  border-top-color: var(--case-lo);
 }
-
 button:disabled {
-  color: #5d5b51;
-  background: var(--panel);
+  color: #7d7868;
+  background: #a09b8b;
   cursor: not-allowed;
 }
-
 button:focus-visible,
-select:focus-visible,
-input:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--phosphor);
+  outline: 2px solid var(--p);
   outline-offset: 2px;
 }
-
-/* A stencilled classification mark. Used on live readiness only. */
-.stamp {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--alarm-text);
-  border: 1px solid var(--alarm);
-  background: rgba(200, 64, 46, 0.12);
-  padding: 2px 7px;
-  display: inline-block;
+button.ghost {
+  color: var(--p);
+  background: transparent;
+  border-color: var(--p-dim);
+}
+button.solid {
+  color: #10120f;
+  background: var(--p);
+  border-color: var(--p-dim);
+  font-weight: 600;
 }
 
 a {
-  color: var(--blueprint);
-  text-underline-offset: 2px;
+  color: inherit;
 }
 
 @media (prefers-reduced-motion: reduce) {

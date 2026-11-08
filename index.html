@@ -3,151 +3,131 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>BRINK — a three-minute nuclear crisis</title>
+    <title>BRINK — twenty-six minutes</title>
     <meta
       name="description"
-      content="A short, real-time nuclear crisis with real arsenals and real distances. Play it in the browser, or attach it to your own AI agent over MCP."
+      content="A twenty-six minute nuclear crisis. You hold sole authority. Warnings are estimates and nothing you release comes back."
     />
     <link rel="stylesheet" href="/src/web/tokens.css" />
     <link rel="stylesheet" href="/src/web/layout.css" />
   </head>
-  <body>
-    <div class="exercise-band" data-tip="exercise">
-      <span>EXERCISE</span><span>SIMULATION — NOT A REAL EVENT</span><span>EXERCISE</span>
-    </div>
-
-    <header class="masthead">
-      <h1>BRINK</h1>
-      <p class="masthead-meta">A three-minute nuclear crisis</p>
-      <nav class="masthead-nav">
-        <a href="/replay.html">Replays</a>
-        <a href="https://github.com/ponzgpt/brink">Source</a>
-      </nav>
-    </header>
-
-    <main id="app">
-      <!-- 1. CHOOSE -->
-      <section class="start" id="start">
-        <p class="lede">
-          Nine powers. Their real arsenals, at real distances. Warnings arrive as estimates and some
-          are of nothing. Nothing you launch comes back.
+  <body data-side="USA">
+    <!-- MENU -->
+    <section class="menu" id="menu">
+      <div class="menu-inner">
+        <h1 class="wordmark">BRINK</h1>
+        <p class="tagline">
+          Twenty-six minutes. Sole authority. Warnings are estimates, and nothing you release comes
+          back.
         </p>
-        <ul class="scenario-list" id="scenario-list"></ul>
-        <p class="fineprint">
-          Arsenals: <abbr title="Federation of American Scientists">FAS</abbr>
-          <em>Status of World Nuclear Forces</em>, 2026 figures. Mechanics interpret themes in Annie
-          Jacobsen's <em>Nuclear War: A Scenario</em> — they are not a claim of realism. No real
-          leaders. <a href="https://github.com/ponzgpt/brink#data-and-limitations">Full note</a>.
+
+        <ul class="cards" id="cards"></ul>
+
+        <div class="menu-foot">
+          <div class="side-pick">
+            <span>Command</span>
+            <div class="segmented" id="sides"></div>
+          </div>
+          <button id="sound" type="button" class="ghost" aria-pressed="false">Sound on</button>
+        </div>
+
+        <p class="legal">
+          <b>Simulation.</b> Arsenals from the Federation of American Scientists,
+          <em>Status of World Nuclear Forces</em> (2026). Mechanics interpret themes in Annie
+          Jacobsen's <em>Nuclear War: A Scenario</em>; not a claim of realism, no text reproduced,
+          no real leaders. <a href="https://github.com/ponzgpt/brink">Source and sources</a>.
         </p>
-      </section>
+      </div>
+    </section>
 
-      <!-- 2. BRIEF -->
-      <section class="brief" id="brief" hidden>
-        <div class="brief-card">
-          <p class="brief-kicker">Briefing</p>
-          <h2 id="brief-name">—</h2>
-          <p id="brief-summary">—</p>
-          <p class="brief-teaches" id="brief-teaches">—</p>
-          <ol class="brief-rules">
-            <li><b>The clock does not wait.</b> Minutes pass whether you act or not.</li>
-            <li>
-              <b>Readiness moves one level at a time.</b> Being able to answer takes time you may
-              not have.
-            </li>
-            <li><b>A launch cannot be recalled.</b> There is no undo and no winning.</li>
-          </ol>
-          <div class="brief-go">
-            <label
-              >You command
-              <select id="sel-power"></select
-            ></label>
-            <button id="btn-go" type="button" class="primary">Take the watch</button>
+    <!-- OPENING TITLE -->
+    <section class="opening" id="opening" hidden>
+      <p id="opening-text"></p>
+    </section>
+
+    <!-- TERMINAL -->
+    <section class="terminal" id="terminal" hidden>
+      <div class="bezel">
+        <div class="glass">
+          <header class="crt-head">
+            <span class="crt-id">BRINK</span>
+            <span class="crt-ex">EXERCISE — SIMULATION</span>
+            <span class="crt-side" id="crt-side">USA</span>
+            <span class="crt-clock" id="clock">T-26:00</span>
+          </header>
+
+          <div class="crt-body">
+            <div class="plot-wrap">
+              <canvas id="globe" aria-label="Plot of powers and tracks in flight"></canvas>
+              <div class="key" id="key"></div>
+            </div>
+
+            <aside class="readouts">
+              <div class="ro" id="ro-assess">
+                <h2>Assessment</h2>
+                <p class="ro-line" id="assess-line">—</p>
+                <p class="ro-sub" id="assess-sub">—</p>
+              </div>
+              <div class="ro grow">
+                <h2>Threat board</h2>
+                <ol class="log" id="log-threat"></ol>
+              </div>
+              <div class="ro grow">
+                <h2>Your actions</h2>
+                <ol class="log" id="log-own"></ol>
+              </div>
+            </aside>
+          </div>
+
+          <div class="timeline">
+            <div class="tl-bar"><span id="tl-fill"></span></div>
+            <div class="tl-marks" id="tl-marks"></div>
+          </div>
+
+          <div class="chain" id="chain">
+            <button class="step" data-step="1" id="s1" type="button">
+              <span class="step-n">1</span><span class="step-l">Open the case</span>
+            </button>
+            <button class="step" data-step="2" id="s2" type="button">
+              <span class="step-n">2</span><span class="step-l">Authenticate</span>
+            </button>
+            <button class="step" data-step="3" id="s3" type="button">
+              <span class="step-n">3</span><span class="step-l">Select option</span>
+            </button>
+            <button class="step keys" data-step="4" id="s4" type="button">
+              <span class="step-n">4</span><span class="step-l">Turn keys</span>
+            </button>
+            <button class="step down" id="sdown" type="button">
+              <span class="step-l">Stand down</span>
+            </button>
+          </div>
+
+          <div class="option-tray" id="tray" hidden>
+            <span>Strike option</span>
+            <button data-opt="LIMITED" type="button">Limited — their forces</button>
+            <button data-opt="MAJOR" type="button">Major — their cities</button>
+            <span class="tray-t">against</span>
+            <div class="segmented" id="tray-targets"></div>
           </div>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <!-- 3. CRISIS -->
-      <section class="crisis" id="crisis" hidden>
-        <div class="board-col">
-          <div class="board-head">
-            <span class="clock" id="clock">T+00:00</span>
-            <span class="board-title" id="board-title">—</span>
-            <span class="tracks" id="tracks">0 TRACKS</span>
-          </div>
-          <div class="screen-frame">
-            <canvas id="globe" aria-label="Plot of powers, cities and tracks in flight"></canvas>
-          </div>
-          <div class="ladder" id="ladder" data-tip="defcon"></div>
-
-          <div class="actions">
-            <button id="act-lower" type="button" data-tip="defcon">Lower readiness</button>
-            <button id="act-raise" type="button" data-tip="defcon">Raise readiness</button>
-            <span class="actions-gap"></span>
-            <select id="act-unit" data-tip="salvo" aria-label="Unit"></select>
-            <select id="act-target" aria-label="Target power"></select>
-            <select id="act-kind" aria-label="Target type"></select>
-            <button id="act-launch" type="button" class="danger">Release</button>
-            <span class="actions-gap"></span>
-            <button id="act-doctrine" type="button" data-tip="doctrine">Delegate</button>
-            <button id="act-pause" type="button">Pause</button>
-          </div>
+    <!-- RECORD -->
+    <section class="record" id="record" hidden>
+      <div class="record-card">
+        <p class="kicker">After-action record</p>
+        <h2 id="rec-head">—</h2>
+        <p class="rec-dead" id="rec-dead">—</p>
+        <p class="rec-note" id="rec-note"></p>
+        <table id="rec-table"></table>
+        <div class="rec-actions">
+          <button id="rec-again" type="button" class="solid">Run it again</button>
+          <button id="rec-menu" type="button">Menu</button>
         </div>
+      </div>
+    </section>
 
-        <aside class="rail">
-          <div class="pod" id="pod-advisory">
-            <h2 data-tip="advisory">Assessment</h2>
-            <p class="advisory-head" id="adv-head">—</p>
-            <p class="advisory-detail" id="adv-detail">—</p>
-          </div>
-
-          <div class="pod">
-            <h2 data-tip="warning">Early warning</h2>
-            <div id="warnings"><p class="quiet">Clear.</p></div>
-          </div>
-
-          <div class="pod">
-            <h2>Your forces</h2>
-            <table class="grid" id="units"></table>
-          </div>
-
-          <div class="pod">
-            <h2>Board</h2>
-            <table class="grid" id="powers"></table>
-          </div>
-
-          <ol class="ticker" id="ticker"></ol>
-        </aside>
-
-        <div class="coach" id="coach" hidden>
-          <p id="coach-text"></p>
-          <button id="coach-ok" type="button">Got it</button>
-        </div>
-      </section>
-
-      <!-- 4. RECORD -->
-      <section class="record" id="record" hidden>
-        <div class="record-card">
-          <p class="brief-kicker">After-action record</p>
-          <h2 id="rec-verdict">—</h2>
-          <p class="rec-dead" id="rec-dead">—</p>
-          <p class="rec-note" id="rec-note"></p>
-          <table class="grid" id="rec-table"></table>
-          <div class="row">
-            <button id="rec-again" type="button" class="primary">Run it again</button>
-            <button id="rec-other" type="button">Different scenario</button>
-            <button id="rec-download" type="button">Download log</button>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <footer class="foot">
-      <p>
-        A simulation, not a model of nuclear war. Population is an abstract figure.
-        <a href="https://github.com/ponzgpt/brink">Source and sources</a> · attach it to an agent
-        over MCP.
-      </p>
-    </footer>
     <script type="module" src="/src/web/main.ts"></script>
   </body>
 </html>

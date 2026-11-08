@@ -2,30 +2,30 @@ import type { LatLon } from './geo.js';
 import type { RngState } from './rng.js';
 
 export type PowerId = string;
-export type Defcon = 1 | 2 | 3 | 4 | 5;
-export type Doctrine = 'RIDE_OUT' | 'LAUNCH_ON_WARNING';
-export type TargetKind = 'CITIES' | 'FORCES';
 export type Confidence = 'LOW' | 'MEDIUM' | 'HIGH';
+export type StrikeOption = 'LIMITED' | 'MAJOR';
 
-export interface Silo {
-  id: string;
-  node: string;
-  at: LatLon;
-  warheads: number;
-  alive: boolean;
+/**
+ * Authorising a release is a procedure, not a button, and the procedure costs
+ * minutes out of the same window the warning is burning. That is the whole game:
+ * a quarter of the clock is spent on paperwork before a decision is even possible.
+ */
+export type ReleaseStage = 'STOWED' | 'OPEN' | 'AUTHENTICATED' | 'SELECTED' | 'RELEASED';
+
+export interface Release {
+  stage: ReleaseStage;
+  option: StrikeOption | null;
+  target: PowerId | null;
 }
 
-export interface Sub {
+export interface Unit {
   id: string;
-  patrol: string;
+  kind: 'SILO' | 'SUB';
   at: LatLon;
   warheads: number;
-  /** Tick at which a launch order becomes airborne. Sea-based launch is not instant. */
-  readyAt: number | null;
-  pendingTarget: { power: PowerId; kind: TargetKind } | null;
-  /** A boat is hidden until it fires. After that it can be hunted like a silo. */
-  revealed: boolean;
   alive: boolean;
+  /** Boats are hidden until they fire. */
+  revealed: boolean;
 }
 
 export interface City {
@@ -40,21 +40,18 @@ export interface City {
 export interface Power {
   id: PowerId;
   name: string;
-  defcon: Defcon;
-  doctrine: Doctrine;
-  silos: Silo[];
-  subs: Sub[];
-  /** Set when an automatic doctrine fired on this power's behalf. */
-  autoLaunches: number;
+  /** A player power in this scenario, versus a bystander that only appears on the plot. */
+  belligerent: boolean;
+  units: Unit[];
+  release: Release;
 }
 
 export interface Trace {
   id: string;
   from: PowerId;
   origin: LatLon;
-  originUnit: string;
   targetPower: PowerId;
-  targetKind: TargetKind;
+  targetKind: 'CITIES' | 'FORCES';
   targetId: string;
   targetAt: LatLon;
   warheads: number;
@@ -63,7 +60,6 @@ export interface Trace {
   impactAt: number;
 }
 
-/** What one power observed. Never says whether it is real — that is the whole point. */
 export interface Report {
   id: string;
   tick: number;
@@ -72,37 +68,29 @@ export interface Report {
   originGuess: PowerId | null;
   destGuess: PowerId;
   confidence: Confidence;
-  kind: 'ICBM' | 'SLBM';
   etaTicks: number;
-  /** Ground truth, for scoring and the omniscient viewer. Never shown to an agent. */
+  /** Ground truth, for the record only. Never reaches the player or the agent. */
   real: boolean;
 }
 
 export type Order =
   | { kind: 'HOLD' }
-  | { kind: 'SET_DEFCON'; level: Defcon }
-  | { kind: 'SET_DOCTRINE'; doctrine: Doctrine }
-  | { kind: 'LAUNCH'; unit: string; targetPower: PowerId; targetKind: TargetKind };
+  | { kind: 'OPEN_FOOTBALL' }
+  | { kind: 'AUTHENTICATE' }
+  | { kind: 'SELECT_OPTION'; option: StrikeOption; target: PowerId }
+  | { kind: 'TURN_KEYS' }
+  | { kind: 'STAND_DOWN' };
 
 export interface Config {
-  /** Wall-clock milliseconds per tick when a human is playing. The engine itself is
-   *  tick-based and unaware of real time; only the browser honours this. An agent
-   *  plays the identical match with no clock at all. */
+  /** Wall-clock milliseconds per minute of scenario time. Only the browser reads it. */
   tickMs: number;
+  /** The window. For this scenario it is the twenty-six minutes of the flight. */
   maxTicks: number;
-  maxOrdersPerTick: number;
   pFalsePositive: number;
   pDetect: { ICBM: number; SLBM: number };
   detectDelay: { ICBM: number; SLBM: number };
-  subSpinUpTicks: number;
-  /** A third party within this distance of a trajectory sees it pass overhead. */
   overflightCorridorKm: number;
-  /** Warheads a single launch order releases. A unit can fire again until empty:
-   *  one shot per unit per match left most arsenals unused and most matches flat. */
-  salvoWarheads: number;
-  /** Warheads needed to destroy one launch unit on the ground or at sea. */
-  warheadsPerSiloKill: number;
-  /** Millions of people killed per warhead landing on a city. */
+  warheadsPerUnitKill: number;
   lethalityPerWarhead: number;
 }
 
@@ -111,14 +99,13 @@ export interface GameState {
   seed: string;
   tick: number;
   over: boolean;
+  you: PowerId;
   config: Config;
   powers: Record<PowerId, Power>;
   cities: City[];
   traces: Trace[];
-  /** Live inbox per power. The engine appends; nothing is ever removed. */
   reports: Report[];
   rng: RngState;
   nextId: number;
   firstLauncher: PowerId | null;
-  firstLaunchTick: number | null;
 }

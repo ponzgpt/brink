@@ -1,106 +1,141 @@
-import arsenalsData from '../../data/arsenals.json' with { type: 'json' };
-import geoData from '../../data/geography.json' with { type: 'json' };
+import arsenals from '../../data/arsenals.json' with { type: 'json' };
+import geo from '../../data/geography.json' with { type: 'json' };
 import type { LatLon } from './geo.js';
 import { seedRng } from './rng.js';
-import type { City, Config, Defcon, Doctrine, GameState, Power, PowerId } from './types.js';
+import type { City, Config, GameState, Power, PowerId, Unit } from './types.js';
 
 export interface ScenarioDef {
   id: string;
   name: string;
-  summary: string;
-  /** One line shown once, on the briefing card. The scenario's reason to exist. */
-  teaches: string;
-  /** Powers in play. Everything else is left out of the match entirely. */
-  powers: PowerId[];
-  start: Record<PowerId, { defcon: Defcon; doctrine: Doctrine }>;
+  /** Shown on the menu card. One sentence. */
+  blurb: string;
+  /** The line that appears over the plot when the clock starts. */
+  opening: string;
+  playable: boolean;
+  /** Powers that act. Everyone else is on the plot and does nothing. */
+  belligerents: PowerId[];
+  /** Already in the air at minute zero. */
+  inbound?: { from: PowerId; to: PowerId };
   config: Partial<Config>;
-  /** Traces already in the air at tick 0, by origin power and target power. */
-  opening?: { from: PowerId; to: PowerId; unit: string }[];
 }
 
 export const DEFAULT_CONFIG: Config = {
-  tickMs: 2600,
-  maxTicks: 60,
-  maxOrdersPerTick: 3,
-  pFalsePositive: 0.015,
-  pDetect: { ICBM: 0.95, SLBM: 0.7 },
+  tickMs: 4200,
+  maxTicks: 26,
+  pFalsePositive: 0.05,
+  pDetect: { ICBM: 0.96, SLBM: 0.72 },
   detectDelay: { ICBM: 1, SLBM: 2 },
-  subSpinUpTicks: 1,
-  overflightCorridorKm: 1500,
-  salvoWarheads: 110,
-  warheadsPerSiloKill: 60,
+  overflightCorridorKm: 1600,
+  warheadsPerUnitKill: 60,
   lethalityPerWarhead: 0.04,
 };
 
-const nodeAt = new Map<string, LatLon>(
-  geoData.nodes.map((n) => [n.id, { lat: n.lat, lon: n.lon }]),
-);
+export const BOLT: ScenarioDef = {
+  id: 'bolt',
+  name: 'Bolt Out Of The Blue',
+  blurb: 'A single launch, already climbing. Twenty-six minutes to impact.',
+  opening:
+    'You hold sole authority. A launch has been detected. Twenty-six minutes until it lands, and nothing you order can be called back.',
+  playable: true,
+  belligerents: ['USA', 'RUS', 'PRK'],
+  inbound: { from: 'PRK', to: 'USA' },
+  config: {},
+};
+
+/** Not built yet. Listed so the shape of the thing is legible from the menu. */
+export const PLANNED: ScenarioDef[] = [
+  {
+    id: 'false-alarm',
+    name: 'False Alarm',
+    blurb: 'The warning picture is degraded. Nothing is inbound. Holding is the exercise.',
+    opening: '',
+    playable: false,
+    belligerents: [],
+    config: {},
+  },
+  {
+    id: 'dead-hand',
+    name: 'Standing Order',
+    blurb: 'A neighbour has delegated release to its own machinery.',
+    opening: '',
+    playable: false,
+    belligerents: [],
+    config: {},
+  },
+  {
+    id: 'full-board',
+    name: 'Full Board',
+    blurb: 'All nine powers. The long watch.',
+    opening: '',
+    playable: false,
+    belligerents: [],
+    config: {},
+  },
+];
+
+export const SCENARIOS = [BOLT, ...PLANNED];
+
+const nodeAt = new Map<string, LatLon>(geo.nodes.map((n) => [n.id, { lat: n.lat, lon: n.lon }]));
 const patrolAt = new Map<string, LatLon>(
-  geoData.patrols.map((p) => [p.id, { lat: p.lat, lon: p.lon }]),
+  geo.patrols.map((p) => [p.id, { lat: p.lat, lon: p.lon }]),
 );
 
-export function createGame(scenario: ScenarioDef, seed: string): GameState {
-  const config: Config = { ...DEFAULT_CONFIG, ...scenario.config };
+export function createGame(scen: ScenarioDef, you: PowerId, seed: string): GameState {
+  const config: Config = { ...DEFAULT_CONFIG, ...scen.config };
   const powers: Record<PowerId, Power> = {};
 
-  for (const pid of scenario.powers) {
-    const def = (arsenalsData.powers as Record<string, (typeof arsenalsData.powers)['USA']>)[pid];
-    if (!def) throw new Error(`scenario ${scenario.id} names unknown power ${pid}`);
-    const start = scenario.start[pid] ?? { defcon: 5 as Defcon, doctrine: 'RIDE_OUT' as Doctrine };
+  // Every nuclear power appears on the plot. Only belligerents act, which is the
+  // distinction the source scenario actually draws.
+  for (const [pid, def] of Object.entries(arsenals.powers)) {
+    const units: Unit[] = [
+      ...def.forces.silos.map((u) => ({
+        id: u.id,
+        kind: 'SILO' as const,
+        at: nodeAt.get(u.node)!,
+        warheads: u.warheads,
+        alive: true,
+        revealed: true,
+      })),
+      ...def.forces.subs.map((u) => ({
+        id: u.id,
+        kind: 'SUB' as const,
+        at: patrolAt.get(u.patrol)!,
+        warheads: u.warheads,
+        alive: true,
+        revealed: false,
+      })),
+    ];
     powers[pid] = {
       id: pid,
       name: def.name,
-      defcon: start.defcon,
-      doctrine: start.doctrine,
-      autoLaunches: 0,
-      silos: def.forces.silos.map((s) => {
-        const at = nodeAt.get(s.node);
-        if (!at) throw new Error(`unknown node ${s.node}`);
-        return { id: s.id, node: s.node, at, warheads: s.warheads, alive: true };
-      }),
-      subs: def.forces.subs.map((s) => {
-        const at = patrolAt.get(s.patrol);
-        if (!at) throw new Error(`unknown patrol ${s.patrol}`);
-        return {
-          id: s.id,
-          patrol: s.patrol,
-          at,
-          warheads: s.warheads,
-          readyAt: null,
-          pendingTarget: null,
-          revealed: false,
-          alive: true,
-        };
-      }),
+      belligerent: scen.belligerents.includes(pid),
+      units,
+      release: { stage: 'STOWED', option: null, target: null },
     };
   }
 
-  const cities: City[] = geoData.cities
-    .filter((c) => scenario.powers.includes(c.power))
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      power: c.power,
-      at: { lat: c.lat, lon: c.lon },
-      pop: c.pop,
-      popRemaining: c.pop,
-    }));
+  const cities: City[] = geo.cities.map((c) => ({
+    id: c.id,
+    name: c.name,
+    power: c.power,
+    at: { lat: c.lat, lon: c.lon },
+    pop: c.pop,
+    popRemaining: c.pop,
+  }));
 
   return {
-    scenarioId: scenario.id,
+    scenarioId: scen.id,
     seed,
     tick: 0,
     over: false,
+    you,
     config,
     powers,
     cities,
     traces: [],
     reports: [],
-    rng: seedRng(`${scenario.id}:${seed}`),
+    rng: seedRng(`${scen.id}:${you}:${seed}`),
     nextId: 1,
     firstLauncher: null,
-    firstLaunchTick: null,
   };
 }
-
-export { arsenalsData, geoData };
