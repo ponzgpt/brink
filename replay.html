@@ -9,41 +9,46 @@
     <link rel="stylesheet" href="/src/web/layout.css" />
   </head>
   <body>
+    <div class="exercise-band" data-tip="exercise">
+      <span>EXERCISE</span><span>SIMULATION — NOT A REAL EVENT</span><span>EXERCISE</span>
+    </div>
     <header class="masthead">
       <h1><a href="/">BRINK</a></h1>
       <p class="masthead-meta">Replay</p>
+      <nav class="masthead-nav"><a href="/">Play</a></nav>
     </header>
     <hr class="rule" />
 
     <main id="app">
-      <section class="setup" id="picker">
-        <div class="setup-inner">
-          <p class="setup-lede">
+      <section class="start" id="picker">
+        <div>
+          <p class="lede">
             Every match writes an event log, and the log is all the viewer needs: a seed and a list
             of orders reproduce a match exactly. Drop one in to watch it back.
           </p>
-          <div class="setup-controls">
+          <div class="brief-go">
             <label
               >Match log <input type="file" id="file" accept=".jsonl,.ndjson,.json,.txt"
             /></label>
             <button id="btn-sample" type="button">Load a sample match</button>
           </div>
-          <p class="setup-note" id="picker-note">
+          <p class="fineprint" id="picker-note">
             Logs come from the Download replay button at the end of a match.
           </p>
         </div>
       </section>
 
-      <section class="game" id="player" hidden>
-        <div class="board">
+      <section class="crisis" id="player" hidden>
+        <div class="board-col">
+          <div class="board-head">
+            <span class="clock" id="hud-clock">T+0 MIN</span>
+            <span class="board-title">REPLAY</span>
+            <span id="hud-traces">0 TRACKS</span>
+          </div>
           <div class="screen-frame">
             <canvas id="globe" aria-label="Globe replaying a recorded match"></canvas>
-            <div class="screen-overlay">
-              <span id="hud-clock">MINUTE 0</span>
-              <span id="hud-traces">0 IN FLIGHT</span>
-            </div>
           </div>
-          <div class="defcon-strip" id="defcon-strip" aria-label="Readiness of each power"></div>
+          <div class="ladder" id="defcon-strip" aria-label="Readiness of each power"></div>
           <div class="transport">
             <button id="btn-play" type="button">Play</button>
             <button id="btn-step-back" type="button">◀ minute</button>
@@ -58,10 +63,10 @@
           </div>
         </div>
 
-        <aside class="panels">
-          <div class="panel">
+        <aside class="rail">
+          <div class="pod">
             <h2>Match</h2>
-            <table class="kv">
+            <table class="grid">
               <tbody>
                 <tr>
                   <th>Scenario</th>
@@ -78,20 +83,16 @@
               </tbody>
             </table>
           </div>
-          <div class="panel">
+          <div class="pod">
             <h2>Population</h2>
-            <table class="powers" id="m-powers"></table>
+            <table class="grid" id="m-powers"></table>
           </div>
         </aside>
 
-        <div class="log-wrap">
-          <h2>Log</h2>
-          <ol id="log" class="log"></ol>
-        </div>
+        <ol id="log" class="ticker"></ol>
       </section>
     </main>
 
-    <hr class="rule" />
     <footer class="foot">
       <p>The same renderer draws the live match and this replay, from the same event log.</p>
     </footer>

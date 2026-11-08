@@ -9,3 +9,4 @@ export * from './observation.js';
 export * from './doctrine.js';
 export * from './match.js';
 export * from './scenarios.js';
+export * from './advisory.js';

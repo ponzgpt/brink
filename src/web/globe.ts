@@ -9,6 +9,8 @@ import type { City, Trace } from '../engine/index.js';
 
 const R = 1;
 const PHOSPHOR = 0xe8a33d;
+const TRACK = 0x6fd3e8;
+const TRACK_DIM = 0x2f6b78;
 const PHOSPHOR_2 = 0x8c6a2b;
 const ALARM = 0xd9533b;
 
@@ -197,12 +199,12 @@ export class Globe {
       this.arcs.add(
         new THREE.Line(
           full,
-          new THREE.LineBasicMaterial({ color: PHOSPHOR_2, transparent: true, opacity: 0.25 }),
+          new THREE.LineBasicMaterial({ color: TRACK_DIM, transparent: true, opacity: 0.4 }),
         ),
       );
       const head = new THREE.Mesh(
-        new THREE.SphereGeometry(0.012, 10, 8),
-        new THREE.MeshBasicMaterial({ color: PHOSPHOR }),
+        new THREE.SphereGeometry(0.014, 10, 8),
+        new THREE.MeshBasicMaterial({ color: TRACK }),
       );
       head.position.copy(curve.getPoint(p));
       this.arcs.add(head);

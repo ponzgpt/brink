@@ -5,10 +5,11 @@
 import {
   AGENTS,
   SCENARIOS,
+  byPopulation,
   playScripted,
-  rank,
   type DoctrineName,
   type PowerId,
+  type PowerRecord,
 } from '../engine/index.js';
 
 export interface BalanceRow {
@@ -36,16 +37,16 @@ export function runBalance(scenarioId: string, matchesPerPairing: number, pFalse
       assignment[p] = names[(idx + i) % names.length]!;
     });
     const { result } = playScripted(scen, `bal-${scenarioId}-${pFalsePositive}-${i}`, assignment);
-    const ordered = rank(result);
+    const ordered = byPopulation(result);
     const top = ordered[0]!.populationPct;
-    const winners = ordered.filter((s) => s.populationPct === top);
-    for (const s of result.scores) {
+    const winners: PowerRecord[] = ordered.filter((s) => s.populationPct === top);
+    for (const s of result.records) {
       const d = assignment[s.power]!;
       const t = tally[d]!;
       t.m++;
       t.own += s.populationPct;
       t.glob += result.globalPopulationPct;
-      if (s.launchedAfterFalsePositive) t.fp++;
+      if (s.firedOnFalseWarning) t.fp++;
       if (winners.some((w) => w.power === s.power)) t.w += 1 / winners.length;
     }
   }

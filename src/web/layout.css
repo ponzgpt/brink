@@ -1,17 +1,35 @@
-/* Page composition. Colour and type live in tokens.css. */
+/* Composition. Colour and type live in tokens.css. */
+
+/* Real exercise traffic is banded so nobody mistakes it for the real thing.
+   Here that convention does double duty as the disclaimer. */
+.exercise-band {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 24px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: var(--hull);
+  background: repeating-linear-gradient(135deg, var(--caution) 0 14px, #b8891f 14px 28px);
+  cursor: help;
+}
+.exercise-band span:nth-child(2) {
+  letter-spacing: 0.16em;
+}
 
 .masthead {
   display: flex;
   align-items: baseline;
   gap: 16px;
-  padding: 14px 24px 12px;
-  flex-wrap: wrap;
+  padding: 13px 24px;
   background: linear-gradient(var(--panel), var(--hull));
+  border-bottom: 1px solid var(--bezel-lo);
 }
 .masthead h1 {
   font-family: var(--mono);
-  font-size: 30px;
-  letter-spacing: 0.08em;
+  font-size: 26px;
+  letter-spacing: 0.1em;
   font-weight: 600;
   margin: 0;
   color: var(--phosphor);
@@ -23,92 +41,213 @@
   text-transform: uppercase;
   color: var(--bone-dim);
   margin: 0;
+  flex: 1;
+}
+.masthead-nav {
+  display: flex;
+  gap: 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 #app {
-  padding: 0 24px 40px;
+  padding: 26px 24px 48px;
 }
 
-/* --- setup --- */
-.setup-inner {
-  max-width: 82ch;
-  padding: 28px 0 8px;
+/* ---------- 1. choose ---------- */
+.lede {
+  font-size: 20px;
+  line-height: 1.45;
+  max-width: 54ch;
+  margin: 0 0 26px;
 }
-.setup-lede {
-  font-size: 19px;
-  line-height: 1.5;
-  margin: 0 0 22px;
-}
-.setup-facts {
+.scenario-list {
+  list-style: none;
+  margin: 0 0 26px;
+  padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 22px;
-  margin: 0 0 28px;
-  padding: 20px 0 0;
-  border-top: 1px solid var(--bezel-hi);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  max-width: 1040px;
 }
-.setup-facts h3 {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--phosphor);
-  font-weight: 600;
-  margin: 0 0 8px;
+.scenario {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 10px;
+  width: 100%;
+  text-align: left;
+  padding: 14px 15px 15px;
+  background: var(--panel);
+  border-color: var(--bezel-lo);
+  border-top-color: var(--bezel-hi);
 }
-.setup-facts p {
+.scenario:hover {
+  border-left-color: var(--phosphor);
+}
+.scenario-name {
   font-size: 14px;
-  line-height: 1.5;
+  letter-spacing: 0.05em;
+  color: var(--phosphor);
+}
+.scenario-time {
+  font-size: 11px;
   color: var(--bone-dim);
+}
+.scenario-sum {
+  grid-column: 1 / -1;
+  font-family: var(--serif);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--bone-dim);
+  letter-spacing: 0;
+}
+.fineprint {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--bone-dim);
+  max-width: 72ch;
   margin: 0;
 }
 
-.setup-controls {
+/* ---------- 2. brief / 4. record ---------- */
+.brief,
+.record {
   display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  justify-content: center;
+  padding-top: 10px;
 }
-.setup-controls label {
+.record {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  align-items: center;
+  background: rgba(10, 12, 9, 0.86);
+  padding: 20px;
+  overflow-y: auto;
+}
+.brief-card,
+.record-card {
+  width: min(560px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--bezel-lo);
+  border-top-color: var(--bezel-hi);
+  padding: 22px 24px 24px;
+}
+.brief-kicker {
   font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.1em;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--bone-dim);
+  margin: 0 0 6px;
+}
+.brief-card h2,
+.record-card h2 {
+  font-family: var(--mono);
+  font-size: 22px;
+  letter-spacing: 0.04em;
+  margin: 0 0 10px;
+  color: var(--phosphor);
+}
+.brief-card p,
+.record-card p {
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+.brief-teaches {
+  color: var(--bone-dim);
+  border-left: 2px solid var(--phosphor-2);
+  padding-left: 10px;
+  font-size: 15px;
+}
+.brief-rules {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--bone-dim);
+  margin: 0 0 20px;
+  padding-left: 18px;
+}
+.brief-rules b {
+  color: var(--bone);
+  font-weight: 500;
+}
+.brief-go {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.brief-go label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--bone-dim);
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
-.setup-note {
+.primary {
+  color: var(--hull);
+  font-weight: 600;
+  background: linear-gradient(var(--phosphor), #c9862c);
+  border-color: var(--bezel-lo);
+}
+.primary:hover:not(:disabled) {
+  background: linear-gradient(#f2b355, var(--phosphor));
+}
+.danger {
+  color: #ffd9d2;
+  background: linear-gradient(#a83525, #7d2419);
+  border-color: var(--bezel-lo);
+}
+.danger:hover:not(:disabled) {
+  background: linear-gradient(var(--alarm), #9c3222);
+}
+.rec-dead {
+  font-family: var(--mono);
   font-size: 15px;
+  color: var(--alarm-text);
+}
+.rec-note {
+  font-size: 14px;
   color: var(--bone-dim);
-  margin: 18px 0 0;
-  min-height: 3em;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 18px;
 }
 
-/* --- game --- */
-.game {
+/* ---------- 3. crisis ---------- */
+.crisis {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 360px;
-  grid-template-areas: 'board panels' 'log panels';
-  gap: 20px;
-  padding-top: 20px;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 18px;
   align-items: start;
 }
-.board {
-  grid-area: board;
-}
-.panels {
-  grid-area: panels;
+.board-head {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
   gap: 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  color: var(--bone-dim);
+  margin-bottom: 8px;
 }
-.log-wrap {
-  grid-area: log;
+.clock {
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  color: var(--phosphor);
 }
-
-/* The deepest bezel on the page: this is glass in a housing, not a div. */
+.board-title {
+  flex: 1;
+}
 .screen-frame {
   position: relative;
   background: var(--board);
@@ -118,7 +257,7 @@
     inset 0 0 0 1px var(--bezel-lo),
     inset 0 0 0 2px var(--phosphor-2),
     0 0 0 1px var(--bezel-hi);
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 10;
   overflow: hidden;
 }
 #globe {
@@ -128,131 +267,107 @@
   touch-action: none;
   cursor: grab;
 }
-.screen-overlay {
-  position: absolute;
-  inset: auto 10px 8px 10px;
+.ladder {
   display: flex;
-  justify-content: space-between;
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  color: var(--phosphor);
-  pointer-events: none;
+  gap: 2px;
+  margin-top: 10px;
 }
-
-.defcon-strip {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  margin-top: 12px;
-  border: 1px solid var(--bezel-lo);
-  border-top-color: var(--bezel-hi);
-}
-.defcon-cell {
+.rung {
+  flex: 1;
   font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.1em;
+  font-size: 12px;
   text-align: center;
-  padding: 7px 2px;
-  color: var(--bone-dim);
-  border-right: 1px solid var(--rule);
+  padding: 7px 0;
+  color: #6b6a5c;
   background: var(--panel);
+  border: 1px solid var(--bezel-lo);
 }
-.defcon-cell:last-child {
-  border-right: 0;
-}
-.defcon-cell[data-on='1'] {
+.rung[data-on='1'] {
   color: var(--hull);
   font-weight: 600;
-  text-shadow: 0 0 10px rgba(0, 0, 0, 0.35);
 }
-
-/* --- panels --- */
-.transport {
+.actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  margin-top: 10px;
   flex-wrap: wrap;
+  margin-top: 12px;
 }
-.transport input[type='range'] {
-  flex: 1 1 160px;
-  accent-color: var(--phosphor);
+.actions-gap {
+  flex: 0 0 10px;
 }
-.masthead h1 a {
-  color: inherit;
-  text-decoration: none;
+.actions select {
+  max-width: 140px;
 }
 
-.panel {
+/* ---------- rail ---------- */
+.rail {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.pod {
+  background: var(--panel);
   border: 1px solid var(--bezel-lo);
   border-top-color: var(--bezel-hi);
-  padding: 12px 14px 14px;
-  background: var(--panel);
+  padding: 0 14px 12px;
 }
-.panel h2 {
+.pod h2 {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--bone-dim);
-  margin: -12px -14px 10px;
+  margin: 0 -14px 10px;
   padding: 6px 14px;
   background: var(--panel-2);
   border-bottom: 1px solid var(--bezel-lo);
-  display: flex;
-  justify-content: space-between;
 }
-.panel-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.pod h2[data-tip] {
+  cursor: help;
+}
+.advisory-head {
   font-family: var(--mono);
-  font-size: 15px;
-  margin-bottom: 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0 0 6px;
 }
-.counter {
+.advisory-detail {
+  font-size: 13px;
+  line-height: 1.45;
   color: var(--bone-dim);
+  margin: 0;
 }
-table.kv,
-table.powers {
-  width: 100%;
-  border-collapse: collapse;
-  font-family: var(--mono);
-  font-size: 12px;
+#pod-advisory[data-posture='WATCH'] .advisory-head {
+  color: var(--caution);
 }
-table.kv th,
-table.powers th {
-  text-align: left;
-  font-weight: 400;
-  color: var(--bone-dim);
-  padding: 3px 0;
+#pod-advisory[data-posture='URGENT'] {
+  box-shadow: inset 3px 0 0 var(--alarm);
 }
-table.kv td,
-table.powers td {
-  text-align: right;
-  padding: 3px 0;
-}
-table.powers tr + tr th,
-table.powers tr + tr td {
-  border-top: 1px solid var(--bezel-lo);
-}
-
-.warning-list {
-  font-family: var(--mono);
-  font-size: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 180px;
-  overflow-y: auto;
-}
-.warning {
-  border-left: 2px solid var(--caution);
-  padding-left: 8px;
-  color: var(--phosphor);
-}
-.warning b {
+#pod-advisory[data-posture='URGENT'] .advisory-head,
+#pod-advisory[data-posture='TERMINAL'] .advisory-head {
   color: var(--alarm-text);
+}
+.warn {
+  font-family: var(--mono);
+  font-size: 12px;
+  border-left: 2px solid var(--track);
+  padding: 2px 0 2px 8px;
+  margin-bottom: 6px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.warn b {
+  color: var(--alarm-text);
+}
+.warn span[data-tip] {
+  color: var(--bone-dim);
+  cursor: help;
+}
+.warn-eta {
+  margin-left: auto;
+  color: var(--track);
 }
 .quiet {
   font-family: var(--mono);
@@ -260,112 +375,117 @@ table.powers tr + tr td {
   color: var(--bone-dim);
   margin: 0;
 }
-
-.order-controls .row {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 8px;
-  flex-wrap: wrap;
-}
-.order-controls select {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.commit {
-  font-weight: 600;
-  color: var(--hull);
-  background: linear-gradient(var(--phosphor), #c9862c);
-  border-color: var(--bezel-lo);
-}
-.commit:hover:not(:disabled) {
-  background: linear-gradient(#f2b355, var(--phosphor));
-}
-.order-queue {
-  list-style: none;
-  margin: 0 0 8px;
-  padding: 0;
+table.grid {
+  width: 100%;
+  border-collapse: collapse;
   font-family: var(--mono);
   font-size: 12px;
 }
-.order-queue li {
+table.grid th {
+  text-align: left;
+  font-weight: 400;
+  padding: 3px 0;
+}
+table.grid td {
+  text-align: right;
+  padding: 3px 0;
+}
+table.grid .dim {
+  color: var(--bone-dim);
+}
+table.grid tr + tr th,
+table.grid tr + tr td {
   border-top: 1px solid var(--bezel-lo);
-  padding: 4px 0;
 }
-.order-queue li.warn {
-  color: var(--alarm-text);
+table.grid tr.you th {
+  color: var(--phosphor);
 }
-
-.log {
-  font-family: var(--mono);
-  font-size: 12px;
+.ticker {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 240px;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--bone-dim);
+  max-height: 200px;
   overflow-y: auto;
   border-top: 1px solid var(--bezel-hi);
+  padding-top: 8px;
 }
-.log li {
-  padding: 3px 0;
-  border-bottom: 1px solid var(--bezel-lo);
-  display: flex;
-  gap: 10px;
-}
-.log li .at {
-  color: var(--bone-dim);
-  flex: 0 0 56px;
-}
-.log li.alarm .what {
+.ticker li.alarm {
   color: var(--alarm-text);
 }
 
-.result {
-  padding-top: 24px;
-  max-width: 80ch;
+/* ---------- coach ---------- */
+.coach {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 30;
+  width: min(330px, calc(100vw - 44px));
+  background: var(--panel-2);
+  border: 1px solid var(--phosphor-2);
+  box-shadow: 0 0 0 1px var(--bezel-lo);
+  padding: 14px 16px 12px;
 }
-.result pre {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--phosphor);
-  background: var(--board);
-  border: 1px solid var(--bezel-lo);
-  box-shadow: inset 0 0 0 1px var(--phosphor-2);
-  padding: 16px;
-  overflow-x: auto;
+.coach p {
+  font-size: 14px;
+  line-height: 1.45;
+  margin: 0 0 10px;
 }
-.row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+
+/* ---------- tooltip ---------- */
+.tip {
+  position: fixed;
+  z-index: 60;
+  background: var(--panel-2);
+  color: var(--bone);
+  border: 1px solid var(--phosphor-2);
+  padding: 9px 11px;
+  font-family: var(--serif);
+  font-size: 13px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+
+[data-tip] {
+  cursor: help;
 }
 
 .foot {
-  padding: 16px 24px 40px;
-  max-width: 78ch;
-  font-size: 13px;
+  padding: 0 24px 36px;
+  max-width: 76ch;
+  font-size: 12px;
   color: var(--bone-dim);
-}
-.foot p {
-  margin: 0 0 8px;
-}
-.foot code {
-  font-family: var(--mono);
-  background: var(--panel-2);
-  padding: 1px 4px;
 }
 
 @media (max-width: 900px) {
-  .game {
+  .crisis {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'board' 'panels' 'log';
-  }
-  .panels {
-    grid-area: panels;
   }
   #app,
   .masthead,
+  .exercise-band,
   .foot {
     padding-left: 16px;
     padding-right: 16px;
   }
+}
+
+/* Replay transport. The scrubber is the only range input on the site. */
+.transport {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+.transport input[type='range'],
+input[type='range'] {
+  flex: 1 1 160px;
+  accent-color: var(--phosphor);
+}
+.ticker li {
+  white-space: pre-wrap;
 }

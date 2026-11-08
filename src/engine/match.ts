@@ -3,7 +3,7 @@ import { step } from './engine.js';
 import type { BrinkEvent } from './events.js';
 import { SCHEMA_VERSION } from './events.js';
 import { createGame, type ScenarioDef } from './scenario.js';
-import { scoreMatch, type MatchResult } from './scoring.js';
+import { outcomeOf, type Outcome } from './scoring.js';
 import type { GameState, Order, PowerId } from './types.js';
 
 export interface Match {
@@ -49,7 +49,7 @@ export function playScripted(
   scenario: ScenarioDef,
   seed: string,
   assignment: Record<PowerId, DoctrineName>,
-): { match: Match; result: MatchResult } {
+): { match: Match; result: Outcome } {
   let m = startMatch(scenario, seed);
   while (!m.state.over) {
     const orders: Record<PowerId, Order[]> = {};
@@ -59,5 +59,5 @@ export function playScripted(
     }
     m = advance(m, orders);
   }
-  return { match: m, result: scoreMatch(m.state, m.events) };
+  return { match: m, result: outcomeOf(m.state, m.events) };
 }

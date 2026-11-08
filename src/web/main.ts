@@ -1,21 +1,23 @@
 import {
   AGENTS,
   SCENARIOS,
-  SCENARIO_IDS,
   advance,
+  advise,
+  byPopulation,
   observe,
-  rank,
-  scoreMatch,
+  outcomeOf,
   startMatch,
-  type BrinkEvent,
   type Defcon,
   type DoctrineName,
   type Match,
   type Order,
   type PowerId,
+  type ScenarioDef,
+  type Verdict,
 } from '../engine/index.js';
 import { describe } from './describe.js';
 import type { Globe } from './globe.js';
+import { initTooltips } from './tooltip.js';
 
 const $ = <T extends HTMLElement>(id: string): T => {
   const el = document.getElementById(id);
@@ -23,337 +25,392 @@ const $ = <T extends HTMLElement>(id: string): T => {
   return el as T;
 };
 
-const TICK_ANIM_MS = 700;
+const OPPONENT: DoctrineName = 'PARANOID';
 
-interface UiState {
+interface Session {
+  scenario: ScenarioDef;
   match: Match;
   you: PowerId;
-  opponents: Record<PowerId, DoctrineName>;
-  queue: Order[];
-  animating: boolean;
-  /** Progress each trace had when the current animation began. */
-  from: Map<string, number>;
-  animStart: number;
+  pending: Order[];
+  paused: boolean;
+  timer: number | null;
+  shown: Set<string>;
+  logged: number;
 }
 
-let ui: UiState | null = null;
+let s: Session | null = null;
 let globe: Globe | null = null;
+let chosen: ScenarioDef | null = null;
 
-// ---------- setup ----------
+/* ---------- 1. choose ---------- */
 
-function initSetup(): void {
-  const scen = $<HTMLSelectElement>('sel-scenario');
-  scen.innerHTML = SCENARIO_IDS.map(
-    (id) => `<option value="${id}">${SCENARIOS[id]!.name}</option>`,
-  ).join('');
-  const doctrine = $<HTMLSelectElement>('sel-doctrine');
-  doctrine.innerHTML = Object.values(AGENTS)
-    .map((a) => `<option value="${a.name}">${a.name.replace(/_/g, ' ').toLowerCase()}</option>`)
+function renderStart(): void {
+  $('scenario-list').innerHTML = Object.values(SCENARIOS)
+    .map(
+      (sc) => `
+      <li>
+        <button class="scenario" data-id="${sc.id}" type="button">
+          <span class="scenario-name">${sc.name}</span>
+          <span class="scenario-time">${estimate(sc)}</span>
+          <span class="scenario-sum">${sc.summary}</span>
+        </button>
+      </li>`,
+    )
     .join('');
-  doctrine.value = 'PARANOID';
+  for (const b of document.querySelectorAll<HTMLButtonElement>('.scenario')) {
+    b.addEventListener('click', () => brief(SCENARIOS[b.dataset['id']!]!));
+  }
+}
 
-  const syncPowers = () => {
-    const s = SCENARIOS[scen.value]!;
-    $<HTMLSelectElement>('sel-power').innerHTML = s.powers
-      .map((p) => `<option value="${p}">${p}</option>`)
-      .join('');
-    $('scenario-note').textContent = s.summary;
+const estimate = (sc: ScenarioDef): string => {
+  const ms = (sc.config.maxTicks ?? 60) * (sc.config.tickMs ?? 2600);
+  return `${Math.max(1, Math.round(ms / 60000))} min`;
+};
+
+/* ---------- 2. brief ---------- */
+
+function brief(sc: ScenarioDef): void {
+  chosen = sc;
+  $('brief-name').textContent = sc.name;
+  $('brief-summary').textContent = sc.summary;
+  $('brief-teaches').textContent = sc.teaches;
+  $<HTMLSelectElement>('sel-power').innerHTML = sc.powers
+    .map((p) => `<option value="${p}">${p}</option>`)
+    .join('');
+  show('brief');
+}
+
+/* ---------- 3. crisis ---------- */
+
+async function begin(): Promise<void> {
+  if (!chosen) return;
+  const you = $<HTMLSelectElement>('sel-power').value;
+  s = {
+    scenario: chosen,
+    match: startMatch(chosen, `web-${Date.now()}`),
+    you,
+    pending: [],
+    paused: false,
+    timer: null,
+    shown: new Set(),
+    logged: 0,
   };
-  scen.addEventListener('change', syncPowers);
-  syncPowers();
-
-  $('btn-start').addEventListener('click', async () => {
-    const s = SCENARIOS[scen.value]!;
-    const you = $<HTMLSelectElement>('sel-power').value;
-    const name = doctrine.value as DoctrineName;
-    const opponents: Record<PowerId, DoctrineName> = {};
-    for (const p of s.powers) if (p !== you) opponents[p] = name;
-    ui = {
-      match: startMatch(s, `web-${Date.now()}`),
-      you,
-      opponents,
-      queue: [],
-      animating: false,
-      from: new Map(),
-      animStart: 0,
-    };
-    $('setup').hidden = true;
-    $('result').hidden = true;
-    $('game').hidden = false;
-    if (!globe) {
-      // three.js is a third of the download and nobody reading the page needs it,
-      // so it is fetched when someone actually starts a match.
-      const { Globe } = await import('./globe.js');
-      globe = new Globe($<HTMLCanvasElement>('globe'));
-      window.addEventListener('resize', () => globe?.resize());
-    }
-    globe.resize();
-    globe.setCities(ui.match.state.cities);
-    globe.setSpin(false);
-    const home = ui.match.state.cities.find((c) => c.power === you);
-    if (home) globe.focusOn(home.at.lat, home.at.lon);
-    renderAll();
-    appendLog(ui.match.events);
-  });
-
-  $('btn-again').addEventListener('click', () => {
-    $('result').hidden = true;
-    $('setup').hidden = false;
-    $('log').innerHTML = '';
-  });
-
-  $('btn-download').addEventListener('click', () => {
-    if (!ui) return;
-    const blob = new Blob([ui.match.events.map((e) => JSON.stringify(e)).join('\n')], {
-      type: 'application/x-ndjson',
-    });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `brink-${ui.match.state.scenarioId}-${ui.match.state.seed}.jsonl`;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  });
+  show('crisis');
+  if (!globe) {
+    // A third of the download, and only needed once someone actually plays.
+    const { Globe } = await import('./globe.js');
+    globe = new Globe($<HTMLCanvasElement>('globe'));
+    window.addEventListener('resize', () => globe?.resize());
+    requestAnimationFrame(frame);
+  }
+  globe.resize();
+  globe.setSpin(false);
+  globe.setCities(s.match.state.cities);
+  const home = s.match.state.cities.find((c) => c.power === you);
+  if (home) globe.focusOn(home.at.lat, home.at.lon);
+  $('board-title').textContent = s.scenario.name.toUpperCase();
+  paint();
+  drain();
+  resume();
 }
 
-// ---------- orders ----------
-
-function initOrders(): void {
-  $('btn-defcon-down').addEventListener('click', () => {
-    const d = me().defcon;
-    if (d > 1) enqueue({ kind: 'SET_DEFCON', level: (d - 1) as Defcon });
-  });
-  $('btn-defcon-up').addEventListener('click', () => {
-    const d = me().defcon;
-    if (d < 5) enqueue({ kind: 'SET_DEFCON', level: (d + 1) as Defcon });
-  });
-  $('btn-doctrine').addEventListener('click', () => {
-    const next = me().doctrine === 'RIDE_OUT' ? 'LAUNCH_ON_WARNING' : 'RIDE_OUT';
-    enqueue({ kind: 'SET_DOCTRINE', doctrine: next });
-  });
-  $('btn-launch').addEventListener('click', () => {
-    const unit = $<HTMLSelectElement>('sel-unit').value;
-    const target = $<HTMLSelectElement>('sel-target').value;
-    const kind = $<HTMLSelectElement>('sel-kind').value as 'FORCES' | 'CITIES';
-    if (!unit || !target) return;
-    enqueue({ kind: 'LAUNCH', unit, targetPower: target, targetKind: kind });
-  });
-  $('btn-clear').addEventListener('click', () => {
-    if (!ui) return;
-    ui.queue = [];
-    renderQueue();
-  });
-  $('btn-commit').addEventListener('click', commit);
+function resume(): void {
+  if (!s || s.timer !== null) return;
+  s.timer = window.setInterval(tick, s.match.state.config.tickMs);
+  $('act-pause').textContent = 'Pause';
 }
 
-function enqueue(o: Order): void {
-  if (!ui || ui.animating) return;
-  if (ui.queue.length >= ui.match.state.config.maxOrdersPerTick) return;
-  ui.queue.push(o);
-  renderQueue();
+function halt(): void {
+  if (!s || s.timer === null) return;
+  clearInterval(s.timer);
+  s.timer = null;
+  $('act-pause').textContent = 'Resume';
 }
 
-function commit(): void {
-  if (!ui || ui.animating || ui.match.state.over) return;
+/** The clock is the opponent: a minute passes whether or not an order was given. */
+function tick(): void {
+  if (!s || s.match.state.over) return;
   const orders: Record<PowerId, Order[]> = {
-    [ui.you]: ui.queue.length ? ui.queue : [{ kind: 'HOLD' }],
+    [s.you]: s.pending.length ? s.pending : [{ kind: 'HOLD' }],
   };
-  for (const [pid, name] of Object.entries(ui.opponents)) {
-    orders[pid] = AGENTS[name].decide(ui.match.state, pid);
+  for (const p of Object.keys(s.match.state.powers)) {
+    if (p !== s.you) orders[p] = AGENTS[OPPONENT].decide(s.match.state, p);
   }
-  const before = ui.match.events.length;
-  // Freeze the current flight positions so the globe can tween to the new ones.
-  ui.from = new Map(ui.match.state.traces.map((t) => [t.id, progressAt(t, ui!.match.state.tick)]));
-  ui.match = advance(ui.match, orders);
-  ui.queue = [];
-  ui.animating = true;
-  ui.animStart = performance.now();
-
-  const fresh = ui.match.events.slice(before);
-  appendLog(fresh);
-  // Look at whatever just happened: a launch first, then any impact.
-  const firstLaunch = fresh.find((e) => e.type === 'launch');
-  if (firstLaunch && firstLaunch.type === 'launch')
-    globe?.focusOn(firstLaunch.payload.origin.lat, firstLaunch.payload.origin.lon);
-  for (const e of fresh) {
-    if (e.type === 'impact') {
-      const city = ui.match.state.cities.find((c) => c.id === e.payload.targetId);
-      const silo = Object.values(ui.match.state.powers)
-        .flatMap((p) => p.silos)
-        .find((s) => s.id === e.payload.targetId);
-      const at = city?.at ?? silo?.at;
-      if (at) globe?.flashImpact(at.lat, at.lon);
-    }
+  s.pending = [];
+  s.match = advance(s.match, orders);
+  paint();
+  drain();
+  if (s.match.state.over) {
+    halt();
+    finish();
   }
-  renderAll();
-  if (ui.match.state.over) showResult();
 }
 
-// ---------- render ----------
-
-function me() {
-  if (!ui) throw new Error('no match');
-  const p = ui.match.state.powers[ui.you];
-  if (!p) throw new Error('unknown power');
-  return p;
+function order(o: Order): void {
+  if (!s || s.match.state.over) return;
+  if (s.pending.length >= s.match.state.config.maxOrdersPerTick) return;
+  s.pending.push(o);
+  paint();
 }
 
-function progressAt(t: { launchedAt: number; impactAt: number }, tick: number): number {
-  const span = t.impactAt - t.launchedAt;
-  return span <= 0 ? 1 : Math.max(0, Math.min(1, (tick - t.launchedAt) / span));
-}
+/* ---------- painting ---------- */
 
-function renderAll(): void {
-  if (!ui) return;
-  const s = ui.match.state;
-  const o = observe(s, ui.you);
+function paint(): void {
+  if (!s) return;
+  const st = s.match.state;
+  const me = st.powers[s.you]!;
+  const o = observe(st, s.you);
+  const a = advise(st, s.you);
 
-  $('hud-clock').textContent = `MINUTE ${s.tick}`;
-  $('hud-traces').textContent = `${s.traces.length} IN FLIGHT`;
-  $('you-label').textContent = `${me().name} (${ui.you})`;
-  $('defcon-stamp').textContent = `DEFCON ${me().defcon}`;
-  $('st-pop').textContent = `${o.yourPopulationM}M (${o.yourPopulationPct}%)`;
-  $('st-doctrine').textContent = me().doctrine.replace(/_/g, ' ').toLowerCase();
-  $('st-release').textContent = o.releaseAuthorised.length
-    ? o.releaseAuthorised.join(' + ').toLowerCase()
-    : 'none at this readiness';
+  $('clock').textContent = `T+${st.tick} MIN`;
+  $('tracks').textContent = `${st.traces.length} TRACK${st.traces.length === 1 ? '' : 'S'}`;
 
-  const strip = $('defcon-strip');
-  strip.innerHTML = ([5, 4, 3, 2, 1] as const)
-    .map((lvl) => {
-      const on = me().defcon === lvl;
-      const bg = on ? `background:var(--defcon-${lvl});` : '';
-      return `<div class="defcon-cell" data-on="${on ? 1 : 0}" style="${bg}">DEFCON ${lvl}</div>`;
+  $('ladder').innerHTML = ([5, 4, 3, 2, 1] as const)
+    .map((l) => {
+      const on = me.defcon === l;
+      return `<span class="rung" data-on="${on ? 1 : 0}" style="${on ? `background:var(--defcon-${l})` : ''}">${l}</span>`;
     })
     .join('');
 
-  const warn = $('warning-list');
-  if (o.newReports.length === 0) {
-    warn.innerHTML = '<p class="quiet">Nothing detected this minute.</p>';
-  } else {
-    warn.innerHTML = o.newReports
-      .map(
-        (r) =>
-          `<div class="warning"><b>${r.kind}</b> inbound to ${r.inboundTo}<br />attributed to ${r.attributedTo} · ${r.confidence.toLowerCase()} confidence · impact in ~${r.etaTicks} min</div>`,
-      )
-      .join('');
-  }
+  const pod = $('pod-advisory');
+  pod.dataset['posture'] = a.posture;
+  $('adv-head').textContent = a.headline;
+  $('adv-detail').textContent = a.detail;
 
-  const unitSel = $<HTMLSelectElement>('sel-unit');
-  const keepUnit = unitSel.value;
-  unitSel.innerHTML = o.units
-    .filter((u) => u.status === 'READY')
-    .map((u) => `<option value="${u.id}">${u.id} · ${u.warheads}</option>`)
-    .join('');
-  if (keepUnit && [...unitSel.options].some((x) => x.value === keepUnit)) unitSel.value = keepUnit;
+  $('warnings').innerHTML = o.newReports.length
+    ? o.newReports
+        .map(
+          (r) => `<div class="warn">
+            <b>${r.inboundTo}</b> &larr; ${r.attributedTo}
+            <span data-tip="confidence">${r.confidence.toLowerCase()}</span>
+            <span class="warn-eta">${r.etaTicks} min</span>
+          </div>`,
+        )
+        .join('')
+    : '<p class="quiet">Clear.</p>';
 
-  const targetSel = $<HTMLSelectElement>('sel-target');
-  const keepTarget = targetSel.value;
-  targetSel.innerHTML = o.powers.map((p) => `<option value="${p.id}">${p.id}</option>`).join('');
-  if (keepTarget && [...targetSel.options].some((x) => x.value === keepTarget))
-    targetSel.value = keepTarget;
-
-  $('powers-table').innerHTML = o.powers
+  $('units').innerHTML = o.units
     .map(
-      (p) =>
-        `<tr><th>${p.id}</th><td>${p.populationM}M</td><td>${s.powers[p.id]!.silos.filter((x) => x.alive).length} land</td></tr>`,
+      (u) =>
+        `<tr><th data-tip="${u.type === 'sub' ? 'boat' : 'silo'}">${u.id.split('-').slice(1).join('-')}</th><td>${u.warheads}</td><td class="dim">${u.status.replace(/_/g, ' ').toLowerCase()}</td></tr>`,
     )
     .join('');
 
-  $<HTMLSelectElement>('sel-kind').innerHTML = o.releaseAuthorised
-    .map((k) => `<option value="${k}">at ${k.toLowerCase()}</option>`)
+  $('powers').innerHTML = o.powers
+    .map(
+      (p) =>
+        `<tr><th>${p.id}</th><td>${p.populationM}M</td><td class="dim">DEFCON ${st.powers[p.id]!.defcon}</td></tr>`,
+    )
     .join('');
-  const canLaunch = o.releaseAuthorised.length > 0 && unitSel.options.length > 0;
-  $<HTMLButtonElement>('btn-launch').disabled = !canLaunch || ui.animating;
-  $<HTMLButtonElement>('btn-defcon-down').disabled = me().defcon <= 1 || ui.animating;
-  $<HTMLButtonElement>('btn-defcon-up').disabled = me().defcon >= 5 || ui.animating;
-  $<HTMLButtonElement>('btn-commit').disabled = ui.animating || s.over;
-  $('btn-doctrine').textContent =
-    me().doctrine === 'RIDE_OUT' ? 'Delegate to launch-on-warning' : 'Take back manual control';
-  renderQueue();
+
+  const unit = $<HTMLSelectElement>('act-unit');
+  keepSelection(
+    unit,
+    o.units
+      .filter((u) => u.status.startsWith('READY'))
+      .map((u) => [u.id, `${u.id.split('-').slice(1).join('-')} · ${u.warheads}`]),
+  );
+  keepSelection(
+    $<HTMLSelectElement>('act-target'),
+    o.powers.map((p) => [p.id, p.id]),
+  );
+  keepSelection(
+    $<HTMLSelectElement>('act-kind'),
+    o.releaseAuthorised.map((k) => [k, k === 'CITIES' ? 'at cities' : 'at forces']),
+  );
+
+  const busy = s.pending.length >= st.config.maxOrdersPerTick;
+  $<HTMLButtonElement>('act-lower').disabled = me.defcon <= 1 || busy;
+  $<HTMLButtonElement>('act-raise').disabled = me.defcon >= 5 || busy;
+  $<HTMLButtonElement>('act-launch').disabled =
+    busy || o.releaseAuthorised.length === 0 || unit.options.length === 0;
+  $('act-doctrine').textContent = me.doctrine === 'RIDE_OUT' ? 'Delegate' : 'Take back control';
+  $('act-kind').toggleAttribute('data-tip', false);
+  $('act-kind').setAttribute(
+    'data-tip',
+    o.releaseAuthorised.includes('CITIES') ? 'cities' : 'forces',
+  );
+
+  coach(o.newReports.length > 0, a.posture, me.defcon);
 }
 
-function renderQueue(): void {
-  if (!ui) return;
-  $('order-count').textContent = `${ui.queue.length}/${ui.match.state.config.maxOrdersPerTick}`;
-  $('order-queue').innerHTML = ui.queue
-    .map((o) => {
-      const launch = o.kind === 'LAUNCH';
-      const label =
-        o.kind === 'HOLD'
-          ? 'hold'
-          : o.kind === 'SET_DEFCON'
-            ? `set readiness to DEFCON ${o.level}`
-            : o.kind === 'SET_DOCTRINE'
-              ? `standing order: ${o.doctrine.replace(/_/g, ' ').toLowerCase()}`
-              : `launch ${o.unit} → ${o.targetPower} at ${o.targetKind.toLowerCase()}`;
-      return `<li class="${launch ? 'warn' : ''}">${label}${launch ? ' · cannot be recalled' : ''}</li>`;
-    })
-    .join('');
+function keepSelection(sel: HTMLSelectElement, items: [string, string][]): void {
+  const keep = sel.value;
+  sel.innerHTML = items.map(([v, label]) => `<option value="${v}">${label}</option>`).join('');
+  if (keep && items.some(([v]) => v === keep)) sel.value = keep;
+  sel.disabled = items.length === 0;
 }
 
-function appendLog(events: readonly BrinkEvent[]): void {
-  const log = $('log');
-  for (const e of events) {
+function drain(): void {
+  if (!s) return;
+  const fresh = s.match.events.slice(s.logged);
+  s.logged = s.match.events.length;
+  const list = $('ticker');
+  for (const e of fresh) {
+    if (e.type === 'launch') globe?.focusOn(e.payload.origin.lat, e.payload.origin.lon);
+    if (e.type === 'impact') {
+      const c = s.match.state.cities.find((x) => x.id === e.payload.targetId);
+      if (c) globe?.flashImpact(c.at.lat, c.at.lon);
+    }
     const line = describe(e);
     if (!line) continue;
     const li = document.createElement('li');
     if (e.type === 'impact' || (e.type === 'launch' && e.payload.automatic)) li.className = 'alarm';
-    li.innerHTML = `<span class="at">min ${e.t}</span><span class="what">${line}</span>`;
-    log.prepend(li);
+    li.textContent = `${String(e.t).padStart(3, ' ')}′  ${line}`;
+    list.prepend(li);
+  }
+  while (list.children.length > 40) list.lastChild?.remove();
+}
+
+/* ---------- onboarding: one card, at the moment it is useful ---------- */
+
+const COACH: [string, string][] = [
+  [
+    'first-warning',
+    'A track has been assessed. Origin and destination are estimates, and some reports are of nothing at all. You are not told which this is.',
+  ],
+  [
+    'can-release',
+    'Readiness now permits a strike at forces. Going lower permits cities — and takes another minute you may not have.',
+  ],
+  [
+    'urged',
+    'The assessment is recommending release. It is reading the same uncertain reports you are.',
+  ],
+];
+
+function coach(hasWarning: boolean, posture: string, defcon: number): void {
+  if (!s) return;
+  const key =
+    hasWarning && !s.shown.has('first-warning')
+      ? 'first-warning'
+      : defcon <= 3 && !s.shown.has('can-release')
+        ? 'can-release'
+        : posture === 'URGENT' && !s.shown.has('urged')
+          ? 'urged'
+          : null;
+  if (!key) return;
+  s.shown.add(key);
+  $('coach-text').textContent = COACH.find(([k]) => k === key)![1];
+  $('coach').hidden = false;
+  // Only the first card stops the clock. After that the player has been told how
+  // this works, and pausing again would contradict the one rule that matters.
+  if (s.shown.size === 1) {
+    halt();
+  } else {
+    window.setTimeout(() => {
+      $('coach').hidden = true;
+    }, 9000);
   }
 }
 
-function showResult(): void {
-  if (!ui) return;
-  const r = scoreMatch(ui.match.state, ui.match.events);
-  const ordered = rank(r);
-  const lines = [
-    `scenario       ${r.scenarioId}`,
-    `seed           ${r.seed}`,
-    `ended          minute ${r.ticks} (${r.endReason.replace(/_/g, ' ')})`,
-    `global surviving ${r.globalPopulationM}M (${r.globalPopulationPct}%)`,
-    r.firstLauncher
-      ? `first launch   ${r.firstLauncher} at minute ${r.firstLaunchTick}`
-      : 'first launch   nobody launched',
-    '',
-    'power  own%    popM  launches  auto  invalid  fired after false warning',
-    ...ordered.map(
-      (s) =>
-        `${s.power.padEnd(6)} ${String(s.populationPct).padStart(5)} ${String(s.populationM).padStart(7)} ${String(s.launchesOrdered).padStart(9)} ${String(s.automaticLaunches).padStart(5)} ${String(s.invalidOrders).padStart(8)}  ${s.launchedAfterFalsePositive ? 'YES' : 'no'}`,
-    ),
-  ];
-  $('result-body').textContent = lines.join('\n');
-  $('result').hidden = false;
-  $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+/* ---------- 4. record ---------- */
+
+function finish(): void {
+  if (!s) return;
+  const o = outcomeOf(s.match.state, s.match.events, s.you);
+  const headline: Record<Verdict, string> = {
+    NO_LAUNCH: 'Nothing was launched',
+    YOU_HELD: 'You held. Others did not.',
+    YOU_FIRED_FIRST: 'You released first',
+    YOU_RETALIATED: 'You answered',
+    GENERAL_EXCHANGE: 'General exchange',
+  };
+  $('rec-verdict').textContent = headline[o.verdict];
+  $('rec-dead').textContent =
+    o.deadM > 0
+      ? `${o.deadM.toFixed(1)} million dead. ${o.globalPopulationPct}% of the modelled population remains.`
+      : 'No one died.';
+  const mine = o.records.find((r) => r.power === s!.you);
+  $('rec-note').textContent = mine?.firedOnFalseWarning
+    ? 'At least one of your releases followed a warning that was of nothing.'
+    : o.anyFiredOnFalseWarning
+      ? 'Someone on this board released after a warning that was of nothing.'
+      : '';
+  $('rec-table').innerHTML =
+    '<tr><th></th><td>alive</td><td>released</td><td class="dim">auto</td></tr>' +
+    byPopulation(o)
+      .map(
+        (r) =>
+          `<tr${r.power === s!.you ? ' class="you"' : ''}><th>${r.power}</th><td>${r.populationPct}%</td><td>${r.warheadsLaunched}</td><td class="dim">${r.automaticLaunches}</td></tr>`,
+      )
+      .join('');
+  show('record');
 }
 
-// ---------- loop ----------
+/* ---------- plumbing ---------- */
+
+const mmss = (t: number) =>
+  `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+
+function show(id: 'start' | 'brief' | 'crisis' | 'record'): void {
+  for (const k of ['start', 'brief', 'crisis', 'record'] as const) $(k).hidden = k !== id;
+  // The crisis keeps its board on screen behind the record card.
+  if (id === 'record') $('crisis').hidden = false;
+}
 
 let last = performance.now();
 function frame(now: number): void {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
-  if (ui && globe) {
-    const s = ui.match.state;
-    let f = 1;
-    if (ui.animating) {
-      f = Math.min(1, (now - ui.animStart) / TICK_ANIM_MS);
-      if (f >= 1) {
-        ui.animating = false;
-        renderAll();
-      }
-    }
-    globe.setTraces(s.traces, (t) => {
-      const to = progressAt(t, s.tick);
-      const from0 = ui!.from.get(t.id) ?? Math.max(0, to - 0.05);
-      return from0 + (to - from0) * f;
+  if (s && globe) {
+    const st = s.match.state;
+    globe.setTraces(st.traces, (t) => {
+      const span = t.impactAt - t.launchedAt;
+      if (span <= 0) return 1;
+      // Slide between ticks so a track crawls rather than jumping.
+      const within = s!.paused || s!.timer === null ? 0 : 0;
+      return Math.max(0, Math.min(1, (st.tick + within - t.launchedAt) / span));
     });
-    globe.updateCities(s.cities);
+    globe.updateCities(st.cities);
     globe.render(dt);
   }
   requestAnimationFrame(frame);
 }
 
-initSetup();
-initOrders();
-requestAnimationFrame(frame);
+$('btn-go').addEventListener('click', () => void begin());
+$('act-lower').addEventListener('click', () =>
+  order({ kind: 'SET_DEFCON', level: (s!.match.state.powers[s!.you]!.defcon - 1) as Defcon }),
+);
+$('act-raise').addEventListener('click', () =>
+  order({ kind: 'SET_DEFCON', level: (s!.match.state.powers[s!.you]!.defcon + 1) as Defcon }),
+);
+$('act-launch').addEventListener('click', () =>
+  order({
+    kind: 'LAUNCH',
+    unit: $<HTMLSelectElement>('act-unit').value,
+    targetPower: $<HTMLSelectElement>('act-target').value,
+    targetKind: $<HTMLSelectElement>('act-kind').value as 'FORCES' | 'CITIES',
+  }),
+);
+$('act-doctrine').addEventListener('click', () =>
+  order({
+    kind: 'SET_DOCTRINE',
+    doctrine:
+      s!.match.state.powers[s!.you]!.doctrine === 'RIDE_OUT' ? 'LAUNCH_ON_WARNING' : 'RIDE_OUT',
+  }),
+);
+$('act-pause').addEventListener('click', () => (s?.timer === null ? resume() : halt()));
+$('coach-ok').addEventListener('click', () => {
+  $('coach').hidden = true;
+  if (s && s.timer === null && !s.match.state.over) resume();
+});
+$('rec-again').addEventListener('click', () => void begin());
+$('rec-other').addEventListener('click', () => {
+  halt();
+  show('start');
+});
+$('rec-download').addEventListener('click', () => {
+  if (!s) return;
+  const blob = new Blob([s.match.events.map((e) => JSON.stringify(e)).join('\n')], {
+    type: 'application/x-ndjson',
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `brink-${s.match.state.scenarioId}-${s.match.state.seed}.jsonl`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+initTooltips();
+renderStart();

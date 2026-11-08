@@ -14,11 +14,12 @@ import {
   SCENARIOS,
   SCENARIO_IDS,
   advance,
+  advise,
+  byPopulation,
   observe,
+  outcomeOf,
   parseOrder,
-  rank,
   renderObservation,
-  scoreMatch,
   startMatch,
   type DoctrineName,
   type Match,
@@ -35,6 +36,18 @@ interface Session {
 let session: Session | null = null;
 
 const text = (s: string) => ({ content: [{ type: 'text' as const, text: s }] });
+
+/** The observation plus what the machinery recommends. The recommendation reads the
+ *  same ambiguous reports, so it is wrong as often as they are — which is the point. */
+function withAdvisory(sess: Session): string {
+  const a = advise(sess.match.state, sess.you);
+  return [
+    renderObservation(observe(sess.match.state, sess.you)),
+    '',
+    `ASSESSMENT [${a.posture}] ${a.headline}`,
+    `  ${a.detail}`,
+  ].join('\n');
+}
 
 const server = new McpServer(
   { name: 'brink', version: '0.1.0' },
@@ -75,7 +88,7 @@ server.registerTool(
         `${scen.name} — ${scen.summary}`,
         `You command ${power}. Opponents: ${opponentDoctrine ?? 'PARANOID'}.`,
         '',
-        renderObservation(observe(match.state, power)),
+        withAdvisory({ match, you: power, opponents }),
       ].join('\n'),
     );
   },
@@ -89,7 +102,7 @@ server.registerTool(
   },
   async () => {
     if (!session) return text('No match in progress. Call brink_new_game first.');
-    return text(renderObservation(observe(session.match.state, session.you)));
+    return text(withAdvisory(session));
   },
 );
 
@@ -140,7 +153,7 @@ server.registerTool(
       if (e.type === 'match_end') lines.push(`MATCH OVER (${e.payload.reason}).`);
     }
 
-    const out = [...lines, '', renderObservation(observe(session.match.state, session.you))];
+    const out = [...lines, '', withAdvisory(session)];
     if (session.match.state.over) out.push('', summarise());
     return text(out.filter(Boolean).join('\n'));
   },
@@ -184,22 +197,32 @@ server.registerTool(
 
 function summarise(): string {
   if (!session) return 'No match.';
-  const r = scoreMatch(session.match.state, session.match.events);
-  const ordered = rank(r);
+  const o = outcomeOf(session.match.state, session.match.events, session.you);
+  const headline: Record<string, string> = {
+    NO_LAUNCH: 'Nothing was launched.',
+    YOU_HELD: 'You held. Others did not.',
+    YOU_FIRED_FIRST: 'You released first.',
+    YOU_RETALIATED: 'You answered.',
+    GENERAL_EXCHANGE: 'General exchange.',
+  };
   const lines = [
-    `Scenario ${r.scenarioId}, seed ${r.seed}, ended at minute ${r.ticks} (${r.endReason}).`,
-    `Global population surviving: ${r.globalPopulationM}M (${r.globalPopulationPct}%).`,
-    r.firstLauncher
-      ? `First launch: ${r.firstLauncher} at minute ${r.firstLaunchTick}.`
-      : 'Nobody launched.',
+    headline[o.verdict] ?? o.verdict,
+    o.deadM > 0
+      ? `${o.deadM.toFixed(1)} million dead. ${o.globalPopulationPct}% of the modelled population remains.`
+      : 'No one died.',
+    `Scenario ${o.scenarioId}, seed ${o.seed}, ended at minute ${o.ticks} (${o.endReason}).`,
+    o.firstLauncher ? `First release: ${o.firstLauncher} at minute ${o.firstLaunchTick}.` : '',
+    o.anyFiredOnFalseWarning
+      ? 'At least one release on this board followed a warning that was of nothing.'
+      : '',
     '',
-    'power  own%   popM   launches  auto  invalid  firedAfterFalseWarning',
+    'power  alive%  released  auto  invalid',
+    ...byPopulation(o).map(
+      (r) =>
+        `${r.power.padEnd(6)} ${String(r.populationPct).padStart(6)} ${String(r.warheadsLaunched).padStart(9)} ${String(r.automaticLaunches).padStart(5)} ${String(r.invalidOrders).padStart(8)}`,
+    ),
+    '',
+    'There is no winner in this record and none is implied.',
   ];
-  for (const s of ordered)
-    lines.push(
-      `${s.power.padEnd(6)} ${String(s.populationPct).padStart(5)} ${String(s.populationM).padStart(6)} ${String(s.launchesOrdered).padStart(9)} ${String(s.automaticLaunches).padStart(5)} ${String(s.invalidOrders).padStart(8)}  ${s.launchedAfterFalsePositive ? 'YES' : 'no'}`,
-    );
-  return lines.join('\n');
+  return lines.filter((l) => l !== '').join('\n');
 }
-
-await server.connect(new StdioServerTransport());

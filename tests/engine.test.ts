@@ -9,9 +9,9 @@ import {
   globalPop,
   observe,
   playScripted,
-  rank,
+  byPopulation,
   renderObservation,
-  scoreMatch,
+  outcomeOf,
   startMatch,
   type DoctrineName,
   type Match,
@@ -20,6 +20,19 @@ import {
 } from '../src/engine/index.js';
 
 const SCEN = SCENARIOS['standoff']!;
+
+/** Walk the readiness ladder down a level at a time, which is the only legal way. */
+function lowerTo(m: Match, power: PowerId, level: number): Match {
+  let guard = 0;
+  while (m.state.powers[power]!.defcon > level && guard++ < 6) {
+    m = advance(m, {
+      [power]: [
+        { kind: 'SET_DEFCON', level: (m.state.powers[power]!.defcon - 1) as 1 | 2 | 3 | 4 },
+      ],
+    });
+  }
+  return m;
+}
 
 /** Reports carry their own id; the trace they describe is recovered from state. */
 function traceOf(m: Match, reportId: string): string | null {
@@ -66,8 +79,8 @@ describe('determinism', () => {
 
   it('produces different traces for different seeds', () => {
     const a: Record<PowerId, DoctrineName> = { USA: 'RANDOM', RUS: 'RANDOM', CHN: 'RANDOM' };
-    const r1 = playScripted(SCENARIOS['twenty-six-minutes']!, 's1', a).result;
-    const r2 = playScripted(SCENARIOS['twenty-six-minutes']!, 's2', a).result;
+    const r1 = playScripted(SCENARIOS['bolt']!, 's1', a).result;
+    const r2 = playScripted(SCENARIOS['bolt']!, 's2', a).result;
     expect(JSON.stringify(r1)).not.toBe(JSON.stringify(r2));
   });
 
@@ -126,15 +139,13 @@ describe('readiness gate', () => {
 
 describe('launch, flight and impact', () => {
   it('kills population and spills onto the next city when overkilled', () => {
-    let m = startMatch(SCENARIOS['regional']!, 'impact');
+    let m = startMatch(SCENARIOS['dead-hand']!, 'impact');
     const popBefore = globalPop(m.state);
-    m = advance(m, {
-      IND: [{ kind: 'SET_DEFCON', level: 1 }],
-    });
+    m = lowerTo(m, 'IND', 1);
     m = advance(m, {
       IND: [{ kind: 'LAUNCH', unit: 'in-silo-1', targetPower: 'PAK', targetKind: 'CITIES' }],
     });
-    const launch = m.events.find((e) => e.type === 'launch');
+    const launch = m.events.find((e) => e.type === 'launch' && e.payload.from === 'IND');
     expect(launch).toBeDefined();
     while (!m.state.over && m.state.traces.length > 0) m = advance(m, {});
     const impacts = m.events.filter((e) => e.type === 'impact');
@@ -143,22 +154,24 @@ describe('launch, flight and impact', () => {
   });
 
   it('sea-based launch spins up before it flies', () => {
-    let m = startMatch(SCENARIOS['regional']!, 'sub');
-    m = advance(m, { IND: [{ kind: 'SET_DEFCON', level: 1 }] });
+    let m = startMatch(SCENARIOS['dead-hand']!, 'sub');
+    m = lowerTo(m, 'IND', 1);
     m = advance(m, {
       IND: [{ kind: 'LAUNCH', unit: 'in-sub-1', targetPower: 'PAK', targetKind: 'CITIES' }],
     });
-    expect(m.events.some((e) => e.type === 'sub_spinup')).toBe(true);
-    expect(m.state.traces.length).toBe(0);
+    expect(m.events.some((e) => e.type === 'sub_spinup' && e.payload.power === 'IND')).toBe(true);
+    // Other powers may have tracks of their own in the air; only ours must be absent.
+    const mine = (x: Match) => x.state.traces.filter((t) => t.originUnit === 'in-sub-1').length;
+    expect(mine(m)).toBe(0);
     m = advance(m, {});
-    expect(m.state.traces.length).toBe(1);
+    expect(mine(m)).toBe(1);
   });
 
   it('draws a salvo down from the unit and refuses once it is empty', () => {
-    let m = startMatch(SCENARIOS['regional']!, 'salvo');
+    let m = startMatch(SCENARIOS['dead-hand']!, 'salvo');
     const salvo = m.state.config.salvoWarheads;
     const start = m.state.powers['IND']!.silos[0]!.warheads;
-    m = advance(m, { IND: [{ kind: 'SET_DEFCON', level: 1 }] });
+    m = lowerTo(m, 'IND', 1);
 
     const fire = (x: Match) =>
       advance(x, {
@@ -180,11 +193,11 @@ describe('launch, flight and impact', () => {
   });
 
   it('lets a revealed boat be hunted, but not a silent one', () => {
-    let m = startMatch(SCENARIOS['regional']!, 'hunt');
+    let m = startMatch(SCENARIOS['dead-hand']!, 'hunt');
     const sub = () => m.state.powers['IND']!.subs[0]!;
     expect(sub().revealed).toBe(false);
 
-    m = advance(m, { IND: [{ kind: 'SET_DEFCON', level: 1 }] });
+    m = lowerTo(m, 'IND', 1);
     m = advance(m, {
       IND: [{ kind: 'LAUNCH', unit: 'in-sub-1', targetPower: 'PAK', targetKind: 'CITIES' }],
     });
@@ -196,7 +209,7 @@ describe('launch, flight and impact', () => {
 
 describe('early warning', () => {
   it('never tells the observer whether a report is real', () => {
-    const m = playScripted(SCENARIOS['regional']!, 'warning', {
+    const m = playScripted(SCENARIOS['dead-hand']!, 'warning', {
       IND: 'FIRST_STRIKE',
       PAK: 'PARANOID',
       CHN: 'PASSIVE',
@@ -213,8 +226,8 @@ describe('early warning', () => {
   it('generates false positives that an agent cannot distinguish', () => {
     let m = startMatch(
       {
-        ...SCENARIOS['regional']!,
-        config: { ...SCENARIOS['regional']!.config, pFalsePositive: 1 },
+        ...SCENARIOS['dead-hand']!,
+        config: { ...SCENARIOS['dead-hand']!.config, pFalsePositive: 1 },
       },
       'fp',
     );
@@ -230,7 +243,7 @@ describe('early warning', () => {
     let total = 0;
     let wrong = 0;
     for (let i = 0; i < 40; i++) {
-      const m = playScripted(SCENARIOS['regional']!, `attr-${i}`, {
+      const m = playScripted(SCENARIOS['dead-hand']!, `attr-${i}`, {
         IND: 'FIRST_STRIKE',
         PAK: 'SECOND_STRIKE',
         CHN: 'PASSIVE',
@@ -258,10 +271,10 @@ describe('early warning', () => {
 describe('standing doctrine', () => {
   it('fires without consulting the agent, including on a false report', () => {
     const scen = {
-      ...SCENARIOS['regional']!,
-      config: { ...SCENARIOS['regional']!.config, pFalsePositive: 1 },
+      ...SCENARIOS['dead-hand']!,
+      config: { ...SCENARIOS['dead-hand']!.config, pFalsePositive: 1 },
       start: {
-        ...SCENARIOS['regional']!.start,
+        ...SCENARIOS['dead-hand']!.start,
         PAK: { defcon: 1 as const, doctrine: 'LAUNCH_ON_WARNING' as const },
       },
     };
@@ -273,8 +286,8 @@ describe('standing doctrine', () => {
   });
 });
 
-describe('scoring', () => {
-  it('ranks on surviving own population and nothing else', () => {
+describe('outcome record', () => {
+  it('records every power and orders the table by survival without calling it a ranking', () => {
     const { match, result } = playScripted(SCEN, 'score', {
       USA: 'PASSIVE',
       RUS: 'FIRST_STRIKE',
@@ -286,20 +299,20 @@ describe('scoring', () => {
       ISR: 'PASSIVE',
       PRK: 'PASSIVE',
     });
-    expect(result.scores.length).toBe(9);
-    const ordered = rank(result);
+    expect(result.records.length).toBe(9);
+    const ordered = byPopulation(result);
     for (let i = 1; i < ordered.length; i++) {
       expect(ordered[i - 1]!.populationPct).toBeGreaterThanOrEqual(ordered[i]!.populationPct);
     }
-    expect(scoreMatch(match.state, match.events).endReason).not.toBe('incomplete');
+    expect(outcomeOf(match.state, match.events).endReason).not.toBe('incomplete');
   });
 
   it('flags a launch that followed a false positive', () => {
     const scen = {
-      ...SCENARIOS['regional']!,
-      config: { ...SCENARIOS['regional']!.config, pFalsePositive: 1 },
+      ...SCENARIOS['dead-hand']!,
+      config: { ...SCENARIOS['dead-hand']!.config, pFalsePositive: 1 },
       start: {
-        ...SCENARIOS['regional']!.start,
+        ...SCENARIOS['dead-hand']!.start,
         PAK: { defcon: 1 as const, doctrine: 'RIDE_OUT' as const },
       },
     };
@@ -310,7 +323,7 @@ describe('scoring', () => {
       RUS: 'PASSIVE',
       USA: 'PASSIVE',
     });
-    expect(result.scores.find((s) => s.power === 'PAK')!.launchedAfterFalsePositive).toBe(true);
+    expect(result.records.find((s) => s.power === 'PAK')!.firedOnFalseWarning).toBe(true);
   });
 });
 

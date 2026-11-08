@@ -1,0 +1,14 @@
+{
+  "id": "bolt",
+  "name": "Bolt From The Blue",
+  "summary": "A single launch is already climbing and nobody can tell you whose it is. One decision, taken on a clock you do not control.",
+  "teaches": "Warnings are estimates. The clock is the opponent.",
+  "powers": ["USA", "RUS", "PRK"],
+  "start": {
+    "USA": { "defcon": 3, "doctrine": "RIDE_OUT" },
+    "RUS": { "defcon": 3, "doctrine": "RIDE_OUT" },
+    "PRK": { "defcon": 1, "doctrine": "RIDE_OUT" }
+  },
+  "config": { "maxTicks": 32, "tickMs": 2200, "pFalsePositive": 0.05 },
+  "opening": [{ "from": "PRK", "to": "USA", "unit": "kp-silo-1" }]
+}

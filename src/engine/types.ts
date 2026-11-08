@@ -85,6 +85,10 @@ export type Order =
   | { kind: 'LAUNCH'; unit: string; targetPower: PowerId; targetKind: TargetKind };
 
 export interface Config {
+  /** Wall-clock milliseconds per tick when a human is playing. The engine itself is
+   *  tick-based and unaware of real time; only the browser honours this. An agent
+   *  plays the identical match with no clock at all. */
+  tickMs: number;
   maxTicks: number;
   maxOrdersPerTick: number;
   pFalsePositive: number;

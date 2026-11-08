@@ -8,6 +8,8 @@ export interface ScenarioDef {
   id: string;
   name: string;
   summary: string;
+  /** One line shown once, on the briefing card. The scenario's reason to exist. */
+  teaches: string;
   /** Powers in play. Everything else is left out of the match entirely. */
   powers: PowerId[];
   start: Record<PowerId, { defcon: Defcon; doctrine: Doctrine }>;
@@ -17,6 +19,7 @@ export interface ScenarioDef {
 }
 
 export const DEFAULT_CONFIG: Config = {
+  tickMs: 2600,
   maxTicks: 60,
   maxOrdersPerTick: 3,
   pFalsePositive: 0.015,

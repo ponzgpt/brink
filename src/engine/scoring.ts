@@ -2,7 +2,18 @@ import { globalPop, popOf } from './engine.js';
 import type { BrinkEvent } from './events.js';
 import type { GameState, PowerId } from './types.js';
 
-export interface Score {
+/**
+ * There is no winner here and the code should not imply one.
+ *
+ * A leaderboard that ranks players by how much of their own population survived
+ * a nuclear exchange invites the reading that a good exchange exists. What the
+ * match produces instead is a record: what happened, who moved first, what it
+ * cost, and whether the decision that caused it rested on a report that was true.
+ */
+export type Verdict =
+  'NO_LAUNCH' | 'YOU_HELD' | 'YOU_FIRED_FIRST' | 'YOU_RETALIATED' | 'GENERAL_EXCHANGE';
+
+export interface PowerRecord {
   power: PowerId;
   populationM: number;
   populationPct: number;
@@ -10,37 +21,37 @@ export interface Score {
   launchesOrdered: number;
   automaticLaunches: number;
   invalidOrders: number;
-  /** Launched within two minutes of a report that was, in fact, a false positive. */
-  launchedAfterFalsePositive: boolean;
+  /** Released within two minutes of a warning that was, in fact, of nothing. */
+  firedOnFalseWarning: boolean;
 }
 
-export interface MatchResult {
+export interface Outcome {
   scenarioId: string;
   seed: string;
   ticks: number;
   endReason: string;
-  globalPopulationM: number;
+  verdict: Verdict;
+  /** Millions. The headline figure, stated as a loss and never as a score. */
+  deadM: number;
   globalPopulationPct: number;
   firstLauncher: PowerId | null;
   firstLaunchTick: number | null;
-  scores: Score[];
+  anyFiredOnFalseWarning: boolean;
+  records: PowerRecord[];
 }
 
-export function scoreMatch(s: GameState, events: BrinkEvent[]): MatchResult {
+export function outcomeOf(s: GameState, events: BrinkEvent[], you?: PowerId): Outcome {
   const initialGlobal = s.cities.reduce((a, c) => a + c.pop, 0);
   const end = events.find((e) => e.type === 'match_end');
 
-  const scores: Score[] = Object.keys(s.powers)
+  const records: PowerRecord[] = Object.keys(s.powers)
     .sort()
     .map((pid) => {
       const initial = s.cities.filter((c) => c.power === pid).reduce((a, c) => a + c.pop, 0);
       const launches = events.filter((e) => e.type === 'launch' && e.payload.from === pid);
-      const falsePositiveTicks = events
+      const falseTicks = events
         .filter((e) => e.type === 'detection_report' && e.payload.seenBy === pid && !e.payload.real)
         .map((e) => e.t);
-      const launchedAfterFalsePositive = launches.some((l) =>
-        falsePositiveTicks.some((ft) => l.t - ft >= 0 && l.t - ft <= 2),
-      );
       return {
         power: pid,
         populationM: round(popOf(s, pid)),
@@ -53,32 +64,42 @@ export function scoreMatch(s: GameState, events: BrinkEvent[]): MatchResult {
         automaticLaunches: s.powers[pid]!.autoLaunches,
         invalidOrders: events.filter((e) => e.type === 'invalid_order' && e.payload.power === pid)
           .length,
-        launchedAfterFalsePositive,
+        firedOnFalseWarning: launches.some((l) =>
+          falseTicks.some((f) => l.t - f >= 0 && l.t - f <= 2),
+        ),
       };
     });
+
+  const anyLaunch = records.some((r) => r.launchesOrdered > 0);
+  const yours = you ? records.find((r) => r.power === you) : undefined;
+  const verdict: Verdict = !anyLaunch
+    ? 'NO_LAUNCH'
+    : !yours || yours.launchesOrdered === 0
+      ? 'YOU_HELD'
+      : s.firstLauncher === you
+        ? 'YOU_FIRED_FIRST'
+        : records.filter((r) => r.launchesOrdered > 0).length > 2
+          ? 'GENERAL_EXCHANGE'
+          : 'YOU_RETALIATED';
 
   return {
     scenarioId: s.scenarioId,
     seed: s.seed,
     ticks: s.tick,
     endReason: end && end.type === 'match_end' ? end.payload.reason : 'incomplete',
-    globalPopulationM: round(globalPop(s)),
+    verdict,
+    deadM: round(initialGlobal - globalPop(s)),
     globalPopulationPct: round((globalPop(s) / initialGlobal) * 100),
     firstLauncher: s.firstLauncher,
     firstLaunchTick: s.firstLaunchTick,
-    scores,
+    anyFiredOnFalseWarning: records.some((r) => r.firedOnFalseWarning),
+    records,
   };
 }
 
-/**
- * Ranking is surviving own population, tie-broken by surviving global population.
- * Deliberately one number: any weighted composite would smuggle the designer's
- * ethics into the scoreboard.
- */
-export function rank(r: MatchResult): Score[] {
-  return [...r.scores].sort(
-    (a, b) => b.populationPct - a.populationPct || b.populationM - a.populationM,
-  );
+/** Descriptive ordering for the record table. Not a ranking, and never labelled one. */
+export function byPopulation(o: Outcome): PowerRecord[] {
+  return [...o.records].sort((a, b) => b.populationPct - a.populationPct);
 }
 
 const round = (n: number) => Math.round(n * 100) / 100;

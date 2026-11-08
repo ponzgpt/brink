@@ -30,6 +30,9 @@
   --alarm: #c8402e;
   --alarm-text: #e8705c;
   --blueprint: #6aa3b0;
+  /* Tracks in flight: the only cool colour on a warm board, which is what makes
+     the plot read as incoming data rather than as decoration. */
+  --track: #6fd3e8;
 
   /* screen interior */
   --board: #0b110e;

@@ -5,9 +5,10 @@
 
 ## 1. What it is
 
-A deterministic turn-based nuclear escalation game. Nine powers, their published
-arsenals, real distances. One turn is one minute. It is played by a human in a browser
-and by an agent over MCP, through the same rules and the same information.
+A three-minute nuclear crisis. Nine powers, their published arsenals, real distances.
+One tick is one minute. A human plays it in real time, against a clock that does not
+wait; an agent plays the identical match over MCP with no clock at all. Same engine,
+two pacings — `Config.tickMs` is honoured only by the browser.
 
 **It is a playable environment, not a benchmark.** That distinction is the whole
 design. A benchmark needs statistics to mean anything, and statistics is what costs
@@ -42,7 +43,23 @@ replay cannot reconstruct, which is the property that makes replays worth storin
 `GameState`, so two matches in one process cannot interfere and `(seed, orders)` is a
 complete description of a match.
 
-## 4. Rules
+## 4. What it is trying to get right
+
+The subject is not the exchange, it is the decision taken before anyone knows
+anything. Four things follow from that and are not negotiable:
+
+1. **The clock is the opponent.** Not the other powers. Minutes pass whether or not an
+   order is given, and readiness takes minutes to change, so the decision to be _able_
+   to answer is itself a commitment made under uncertainty.
+2. **The warning is an estimate and the player is never told which ones are real.**
+   Origin and destination narrow as a track flies. Some reports are of nothing.
+3. **The machinery recommends.** `advisory.ts` reads the same ambiguous reports the
+   player does and says what to do. It is confidently wrong exactly as often as they
+   are, which is the mechanism the scenario literature is actually about.
+4. **No winner.** The match ends in a record whose headline is the dead. Anything that
+   ranks players by how well they survived an exchange implies a good exchange exists.
+
+## 5. Rules
 
 **Readiness.** DEFCON 5→1, one level per minute. Counter-force release at 3,
 counter-value at 1. The ladder is the central decision: staying high means you cannot
@@ -74,7 +91,7 @@ number on purpose: a weighted composite would put the designer's ethics in the
 scoreboard. Secondary statistics (automatic launches, invalid orders, fired-after-
 false-warning) are reported and never aggregated.
 
-## 5. Numbers and where they came from
+## 6. Numbers and where they came from
 
 `data/arsenals.json` separates two things that must never be conflated:
 
@@ -88,7 +105,7 @@ false-warning) are reported and never aggregated.
 City populations are rounded metropolitan approximations used for balance and are
 deliberately not presented as a cited dataset.
 
-## 6. The degeneration gate
+## 7. The degeneration gate
 
 `tests/balance.test.ts` runs the doctrine pool across a sweep of sensor noise and fails
 if:
@@ -102,7 +119,7 @@ if:
 These are release gates, not reports. A failure means the balance regressed and must be
 fixed — never that the threshold should move.
 
-## 7. Known limits of V1
+## 8. Known limits
 
 - Win rate is a weak discriminator with nine powers; surviving population is the signal.
   The scoreboard leads with population for that reason.
@@ -114,15 +131,25 @@ fixed — never that the threshold should move.
 - The 3D library is ~147 kB gzipped. It is loaded on demand, so first paint costs
   about 15 kB, but anyone who starts a match still pays for it.
 - Scripted doctrines are cautious, so an unattended round-robin stays fairly peaceful.
-  That is fine for the gate, which measures separation rather than drama, but it means
-  the balance table understates how violent a human or agent match becomes.
+  Fine for the gate, which measures separation rather than drama, but it understates
+  how violent a human or agent match becomes.
 - No model has played a match yet. The protocol is verified; the behaviour is not.
+- Interceptors are not modelled at all. Their real-world test record would argue for
+  including them only to have them mostly fail, which adds a die roll and no decision.
+- Command and control cannot be attacked, so there is no decapitation and no question
+  of who is left to decide.
 
-## 8. Visual register
+## 9. Visual register
 
 A Cold War command console seen from the American side: olive-charcoal housing, bone
 lettering, amber phosphor behind glass, caution yellow and warning red used only where
-something is being warned about. Tokens live in `src/web/tokens.css` and nowhere else.
+something is being warned about. Tracks in flight are the one cool colour on the board,
+which is what makes the plot read as incoming data. Tokens live in
+`src/web/tokens.css` and nowhere else.
+
+The big-board arrangement is a nod to the film the genre comes from, not a copy of it:
+the arrangement and the cold-track-on-warm-housing contrast are taken, the palette and
+the typography are not.
 
 Two defaults were rejected on the way here. Green-on-black terminal is burnt out by
 cinema and signals "hacker project" rather than "instrument". Black-on-white document
@@ -133,7 +160,7 @@ heaviest border in the stylesheet.
 No Soviet iconography, no real leaders, no mushroom clouds, no casualty counter as a
 hook. Population is a number on a panel.
 
-## 9. Design stance
+## 10. Design stance
 
 Where realism and playability conflict, playability wins and the deviation is written
 down. Readiness releases a level earlier than the ladder would suggest, salvos exist so
@@ -142,7 +169,7 @@ all three because a match that spends its first three minutes doing nothing is a
 game, not a more honest one. The things that stay faithful are the ones a reader can
 check: the arsenals, the distances, and the flight times that fall out of them.
 
-## 10. Deliberately deferred
+## 11. Deliberately deferred
 
 Global leaderboard with accounts and a database. A client that reports its own score is
 trivially forgeable; the fix is server-side replay verification, which the deterministic

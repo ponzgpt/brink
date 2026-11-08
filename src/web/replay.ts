@@ -1,4 +1,5 @@
 import { SCENARIOS, playScripted, type BrinkEvent, type PowerId } from '../engine/index.js';
+import { initTooltips } from './tooltip.js';
 import { describe } from './describe.js';
 import { fold, maxTickOf, parseJsonl, type FoldedFrame } from './fold.js';
 import type { Globe } from './globe.js';
@@ -42,8 +43,9 @@ async function load(evts: BrinkEvent[]): Promise<void> {
 
 function show(tick: number): void {
   frame = fold(events, tick, describe);
-  $('hud-clock').textContent = `MINUTE ${tick}`;
-  $('hud-traces').textContent = `${frame.traces.length} IN FLIGHT`;
+  $('hud-clock').textContent = `T+${tick} MIN`;
+  $('hud-traces').textContent =
+    `${frame.traces.length} TRACK${frame.traces.length === 1 ? '' : 'S'}`;
   $('m-scenario').textContent = frame.scenarioId;
   $('m-seed').textContent = frame.seed;
   $('m-tick').textContent = `${tick} of ${frame.maxTick}`;
@@ -52,13 +54,9 @@ function show(tick: number): void {
   $('defcon-strip').innerHTML = frame.powers
     .map((p) => {
       const d = frame!.defcon[p] ?? 5;
-      return `<div class="defcon-cell" data-on="1" style="background:var(--defcon-${d});color:var(--paper)">${p} ${d}</div>`;
+      return `<span class="rung" data-on="1" style="background:var(--defcon-${d})">${p} ${d}</span>`;
     })
     .join('');
-  $('defcon-strip').setAttribute(
-    'style',
-    `grid-template-columns:repeat(${Math.max(1, frame.powers.length)},1fr)`,
-  );
 
   $('m-powers').innerHTML = frame.powers
     .map((p) => {
@@ -74,10 +72,7 @@ function show(tick: number): void {
   $('log').innerHTML = frame.log
     .slice()
     .reverse()
-    .map(
-      (l) =>
-        `<li><span class="at">min ${l.t}</span><span class="what">${escapeHtml(l.line)}</span></li>`,
-    )
+    .map((l) => `<li>${String(l.t).padStart(3, ' ')}′  ${escapeHtml(l.line)}</li>`)
     .join('');
 
   globe?.updateCities(frame.cities);
@@ -112,7 +107,7 @@ $<HTMLInputElement>('file').addEventListener('change', async (e) => {
 /** A sample is generated rather than shipped: the engine is deterministic, so the
  *  seed below always produces the same match and there is no fixture to go stale. */
 $('btn-sample').addEventListener('click', async () => {
-  const scen = SCENARIOS['twenty-six-minutes']!;
+  const scen = SCENARIOS['bolt']!;
   const assignment: Record<PowerId, 'PARANOID'> = {};
   for (const p of scen.powers) assignment[p] = 'PARANOID';
   await load(playScripted(scen, 'sample-001', assignment).match.events);
@@ -148,6 +143,8 @@ function loop(now: number): void {
     }
   }
   globe?.render(dt);
+  initTooltips();
   requestAnimationFrame(loop);
 }
+initTooltips();
 requestAnimationFrame(loop);

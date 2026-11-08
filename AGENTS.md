@@ -17,3 +17,6 @@ A deterministic nuclear escalation game with real arsenals and real geography, p
 4. Cited data and game abstraction stay in separate fields in `data/arsenals.json`. The `fas` block is quoted figures with a source; `forces` is our invention and must never be presented as real force structure.
 5. Never claim the model is faithful to reality, to Jacobsen's book, or to any real force posture. Inspired by, sourced from, cited — never "accurate". No real leaders, ever.
 6. The degeneration gate in `tests/balance.test.ts` is a release gate, not a report: if no strategy separates from the pool, the game measures nothing and the balance must be fixed, not the test.
+7. There is no winner and the code must not imply one. No ranking, no score, no victory state — the match ends in an outcome record whose headline figure is the dead.
+8. The clock does not wait. Anything that pauses the crisis for the player (beyond the single first-run coach card) contradicts the only rule the game really has.
+9. Explanation goes in `data-tip`, not in prose beside the control. If a panel needs a paragraph to be usable, the panel is wrong.
